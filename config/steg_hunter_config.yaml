@@ -1,0 +1,28 @@
+# StegHunter Configuration File
+
+# Analysis thresholds
+suspicion_threshold: 50.0  # Default threshold for high suspicion
+
+# Analysis weights (sum should equal 1.0)
+weights:
+  basic: 0.2
+  lsb: 0.5
+  chi_square: 0.2
+  pixel_differencing: 0.1
+
+# Output settings
+output:
+  default_format: json  # json or csv
+  include_detailed: false
+
+# Performance settings
+performance:
+  max_workers: 4  # Number of parallel workers for batch processing
+  chunk_size: 10  # Files to process before progress update
+
+# Detection methods to enable
+enabled_methods:
+  - basic
+  - lsb
+  - chi_square
+  - pixel_differencing
