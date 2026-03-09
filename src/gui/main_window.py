@@ -13,11 +13,15 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QFileDialog, QTabWidget,
                              QStatusBar, QMenuBar, QAction, QToolBar, QComboBox,
                              QProgressBar, QSplitter, QTextEdit, QCheckBox,
-                             QSlider, QGroupBox, QSpinBox, QDoubleSpinBox)
+                             QSlider, QGroupBox, QSpinBox, QDoubleSpinBox, QMessageBox)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap, QFont
 import sys
 from pathlib import Path
+from .batch_dialog import BatchProcessingDialog
+from src.core.pdf_reporter import PDFReporter
+
+
 
 class SteganographyAnalyzerWorker(QThread):
     """Worker thread for running analysis in background"""
@@ -176,6 +180,14 @@ class MainWindow(QMainWindow):
         about_action.setStatusTip('About StegHunter')
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+        
+        
+        pdf_action = QAction('Export &PDF Report', self)
+        pdf_action.setShortcut('Ctrl+P')
+        pdf_action.setStatusTip('Export analysis results as PDF')
+        pdf_action.triggered.connect(self.export_pdf_report)
+        file_menu.insertAction(export_action, pdf_action)
+
     
     def create_toolbar(self):
         """Create application toolbar"""
@@ -663,7 +675,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.status_bar.showMessage(f"Error generating heatmap: {e}")
             self.show_error(f"Error generating heatmap: {e}\n{type(e).__name__}: {e}")
-
+                
     
     def export_results(self):
         """Export analysis results"""
@@ -719,11 +731,9 @@ class MainWindow(QMainWindow):
     
     def batch_process(self):
         """Batch process images"""
-        directory = QFileDialog.getExistingDirectory(self, 'Select Directory')
-        if directory:
-            self.status_bar.showMessage(f"Batch processing: {directory}")
-            # TODO: Implement batch processing dialog
-            self.show_error("Batch processing not yet implemented")
+        dialog = BatchProcessingDialog(self)
+        dialog.exec_()
+
     
     def train_model(self):
         """Train ML model"""
@@ -758,6 +768,66 @@ class MainWindow(QMainWindow):
                 pass
         
         event.accept()
+        
+    def export_pdf_report(self):
+        """Export analysis results as PDF report"""
+        if not self.analysis_results:
+            self.show_error("No analysis results to export")
+            return
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            'Export PDF Report',
+            '',
+            'PDF Files (*.pdf)'
+        )
+        
+        if file_path:
+            try:
+                reporter = PDFReporter()
+                
+                # Get heatmap path if available
+                heatmap_path = None
+                if hasattr(self, 'last_heatmap_path'):
+                    heatmap_path = self.last_heatmap_path
+                
+                pdf_path = reporter.create_single_image_report(
+                    self.current_image_path,
+                    self.analysis_results,
+                    heatmap_path,
+                    file_path
+                )
+                
+                self.status_bar.showMessage(f"PDF report saved to {pdf_path}")
+                QMessageBox.information(self, "Success", f"PDF report saved to:\n{pdf_path}")
+                
+            except Exception as e:
+                self.show_error(f"Error creating PDF report: {e}")
+    
+    def export_batch_pdf(self, results):
+        """Export batch results as PDF report"""
+        if not results:
+            self.show_error("No batch results to export")
+            return
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            'Export Batch PDF Report',
+            '',
+            'PDF Files (*.pdf)'
+        )
+        
+        if file_path:
+            try:
+                reporter = PDFReporter()
+                pdf_path = reporter.create_batch_report(results, file_path)
+                
+                self.status_bar.showMessage(f"Batch PDF report saved to {pdf_path}")
+                QMessageBox.information(self, "Success", f"Batch PDF report saved to:\n{pdf_path}")
+                
+            except Exception as e:
+                self.show_error(f"Error creating batch PDF report: {e}")
+
 
 def main():
     """Main entry point for GUI application"""
