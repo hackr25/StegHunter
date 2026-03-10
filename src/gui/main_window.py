@@ -20,6 +20,8 @@ import sys
 from pathlib import Path
 from .batch_dialog import BatchProcessingDialog
 from src.core.pdf_reporter import PDFReporter
+from src.forensics.hash_entropy import calculate_hashes,calculate_entropy
+from .train_model_dialog import TrainModelDialog
 
 
 
@@ -268,7 +270,19 @@ class MainWindow(QMainWindow):
         self.image_info_label = QLabel("No image loaded")
         self.image_info_label.setStyleSheet("QLabel { color: #666; font-style: italic; }")
         layout.addWidget(self.image_info_label)
-        
+
+        self.hash_md5_label = QLabel("MD5: N/A")
+        self.hash_sha256_label = QLabel("SHA256: N/A")
+        self.entropy_label = QLabel("Entropy: N/A")
+
+        self.hash_md5_label.setStyleSheet("QLabel { font-family: Consolas; font-size: 11px; }")
+        self.hash_sha256_label.setStyleSheet("QLabel { font-family: Consolas; font-size: 11px; }")
+        self.entropy_label.setStyleSheet("QLabel { font-weight: bold; font-size: 12px; }")
+
+        layout.addWidget(self.hash_md5_label)
+        layout.addWidget(self.hash_sha256_label)
+        layout.addWidget(self.entropy_label)
+                
         self.image_viewer_group.setLayout(layout)
     
     def create_results_panel(self):
@@ -447,6 +461,22 @@ class MainWindow(QMainWindow):
             from PIL import Image
             self.current_image = Image.open(image_path)
             self.current_image_path = image_path
+        
+            try:
+                md5, sha256 = calculate_hashes(image_path)
+                entropy = calculate_entropy(image_path)
+
+                self.hash_md5_label.setText(f"MD5: {md5}")
+                self.hash_sha256_label.setText(f"SHA256: {sha256}")
+                self.entropy_label.setText(f"Entropy: {entropy}")
+
+                # Entropy warning for possible stego
+                if entropy > 7.5:
+                    self.entropy_label.setText(f"Entropy: {entropy}  ⚠ High Randomness")
+                    self.entropy_label.setStyleSheet("QLabel { color: red; font-weight: bold; }")
+
+            except Exception as e:
+                print(f"Forensic calculation error: {e}")
             
             # Display in Qt
             pixmap = QPixmap(image_path)
@@ -737,7 +767,9 @@ class MainWindow(QMainWindow):
     
     def train_model(self):
         """Train ML model"""
-        self.show_error("Model training not yet implemented in GUI. Use CLI: python steg_hunter_cli.py train-model")
+        dialog = TrainModelDialog(self)
+        dialog.exec_()
+
     
     def show_about(self):
         """Show about dialog"""
