@@ -1,0 +1,33 @@
+{
+  "metrics": {
+    "traditional_ensemble": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "model_type": "Ensemble"
+    },
+    "xgboost": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "model_type": "Ensemble"
+    },
+    "cnn": {
+      "accuracy": 0.375,
+      "precision": 0.375,
+      "recall": 1.0,
+      "f1_score": 0.5454545454545454,
+      "train_accuracy": 0.53125,
+      "validation_accuracy": 0.375,
+      "training_time": 14.791074514389038
+    },
+    "combined_accuracy": 1.0,
+    "overall_confidence": 1.0,
+    "training_time": 0,
+    "model_path": "test_models/hybrid_model"
+  },
+  "training_time": 32.273860931396484,
+  "test_timestamp": "2026-03-10 22:20:13"
+}

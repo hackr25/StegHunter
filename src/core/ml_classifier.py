@@ -136,6 +136,44 @@ class MLSteganalysisClassifier:
             'error': None
         }
     
+    def _prepare_training_data(self, clean_images: List[str], stego_images: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Prepare training data by extracting features from images
+        
+        Args:
+            clean_images: List of paths to clean images
+            stego_images: List of paths to stego images
+            
+        Returns:
+            X: Feature matrix
+            y: Label vector (0 for clean, 1 for stego)
+        """
+        print("Preparing training data...")
+        
+        # Extract features from clean images
+        clean_features = []
+        for img_path in clean_images:
+            features = self.feature_extractor.extract_features(img_path)
+            if features:
+                clean_features.append(features)
+        
+        # Extract features from stego images
+        stego_features = []
+        for img_path in stego_images:
+            features = self.feature_extractor.extract_features(img_path)
+            if features:
+                stego_features.append(features)
+        
+        # Convert to feature vectors
+        X_clean = [self.feature_extractor.features_to_vector(f) for f in clean_features]
+        X_stego = [self.feature_extractor.features_to_vector(f) for f in stego_features]
+        
+        # Create feature matrix and labels
+        X = np.array(X_clean + X_stego)
+        y = np.array([0] * len(X_clean) + [1] * len(X_stego))
+        
+        return X, y
+    
     def _calculate_metrics(self, y_true, y_pred) -> Dict:
         """Calculate classification metrics"""
         metrics = {
