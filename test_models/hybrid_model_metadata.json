@@ -1,6 +1,0 @@
-{
-  "ensemble_path": "test_models/hybrid_model_ensemble.pkl",
-  "xgb_path": "test_models/hybrid_model_xgb.pkl",
-  "cnn_path": "test_models/hybrid_model_cnn.h5",
-  "creation_time": "2026-03-10 22:20:12"
-}
