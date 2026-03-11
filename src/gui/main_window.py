@@ -675,7 +675,7 @@ class MainWindow(QMainWindow):
                 heatmap = generator.generate_lsb_heatmap(self.current_image_path, output_path)
             elif method == 'comprehensive':
                 heatmaps = generator.generate_comprehensive_heatmap(self.current_image_path, output_path)
-                click.echo(f"Generated {len(heatmaps)} different heatmaps")
+                self.status_bar.showMessage(f"Generated {len(heatmaps)} heatmap(s)")
             elif method == 'ml':
                 model_path = 'models/steg_model.pkl'
                 if not Path(model_path).exists():

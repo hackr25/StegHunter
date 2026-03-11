@@ -98,20 +98,9 @@ class BatchProcessingWorker(QThread):
             self.error_signal.emit(str(e))
     
     def collect_image_files(self, directory, recursive):
-        """Collect image files from directory"""
-        supported = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
-        files = []
-        
-        if recursive:
-            pattern = directory.rglob('*')
-        else:
-            pattern = directory.glob('*')
-        
-        for item in pattern:
-            if item.is_file() and item.suffix.lower() in supported:
-                files.append(item)
-        
-        return files
+        """Collect image files from directory using shared utility."""
+        from src.common.utils import collect_image_files
+        return collect_image_files(directory, recursive)
     
     def save_results(self, results, output_path, output_format):
         """Save results to file"""
@@ -125,88 +114,29 @@ class BatchProcessingWorker(QThread):
             self.error_signal.emit(f"Error saving results: {e}")
     
     def save_csv(self, results, output_path):
-        """Save results as CSV"""
-        import csv
-        
+        """Save results as CSV using shared utility."""
         if not results:
             self.log_signal.emit("No results to save")
             return
-
         try:
-            with open(output_path, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                
-                # Write header based on result type
-                if results and 'prediction' in results[0]:  # ML results
-                    writer.writerow(['Filename', 'File Path', 'Method', 'Prediction', 'Probability', 'Confidence', 'Status'])
-                    for result in results:
-                        prediction_text = 'STEGO' if result['prediction'] == 1 else 'CLEAN'
-                        writer.writerow([
-                            result.get('filename', 'Unknown'),
-                            result.get('file_path', ''),
-                            result.get('method', 'ML-based'),
-                            prediction_text,
-                            f"{result.get('probability', 0):.4f}",
-                            f"{result.get('confidence', 0):.4f}",
-                            result.get('status', 'Unknown')
-                        ])
-                else:  # Heuristic results
-                    writer.writerow(['Filename', 'File Path', 'Method', 'Final Score', 'Basic Score', 'LSB Score', 'Status'])
-                    for result in results:
-                        writer.writerow([
-                            result.get('filename', 'Unknown'),
-                            result.get('file_path', ''),
-                            result.get('method', 'Heuristic'),
-                            f"{result.get('final_score', 0):.2f}",
-                            f"{result.get('basic_score', 0):.2f}",
-                            f"{result.get('lsb_score', 0):.2f}",
-                            result.get('status', 'Unknown')
-                        ])
-            
+            from src.common.utils import save_results_csv
+            save_results_csv(results, output_path)
             self.log_signal.emit(f"✓ Saved {len(results)} results to CSV")
-            
         except Exception as e:
-            print(f"ERROR saving CSV: {e}")
             self.log_signal.emit(f"✗ Error saving CSV: {e}")
             raise
 
     
     def save_json(self, results, output_path):
-        """Save results as JSON"""
-        import json
-        
+        """Save results as JSON using shared utility."""
         if not results:
             self.log_signal.emit("No results to save")
             return
-
         try:
-            # Convert numpy types to native Python types for JSON serialization
-            import numpy as np
-            
-            def convert_numpy_types(obj):
-                if isinstance(obj, np.integer):
-                    return int(obj)
-                elif isinstance(obj, np.floating):
-                    return float(obj)
-                elif isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                elif isinstance(obj, dict):
-                    return {key: convert_numpy_types(value) for key, value in obj.items()}
-                elif isinstance(obj, list):
-                    return [convert_numpy_types(item) for item in obj]
-                else:
-                    return obj
-            
-            # Convert results
-            converted_results = [convert_numpy_types(result) for result in results]
-            
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(converted_results, f, indent=2, default=str)
-            
+            from src.common.utils import save_results_json
+            save_results_json(results, output_path)
             self.log_signal.emit(f"✓ Saved {len(results)} results to JSON")
-            
         except Exception as e:
-            print(f"ERROR saving JSON: {e}")
             self.log_signal.emit(f"✗ Error saving JSON: {e}")
             raise
 

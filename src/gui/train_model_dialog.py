@@ -33,13 +33,9 @@ class ModelTrainingWorker(QThread):
             
             # Collect training images
             self.log_signal.emit("Collecting training images...")
-            clean_images = list(Path(self.clean_dir).glob("*.*"))
-            stego_images = list(Path(self.stego_dir).glob("*.*"))
-            
-            # Filter for image files
-            supported = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
-            clean_images = [str(p) for p in clean_images if p.suffix.lower() in supported]
-            stego_images = [str(p) for p in stego_images if p.suffix.lower() in supported]
+            from src.common.utils import collect_image_files
+            clean_images = [str(p) for p in collect_image_files(self.clean_dir)]
+            stego_images = [str(p) for p in collect_image_files(self.stego_dir)]
             
             self.log_signal.emit(f"Found {len(clean_images)} clean images")
             self.log_signal.emit(f"Found {len(stego_images)} stego images")
