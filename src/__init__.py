@@ -1,0 +1,1 @@
+"""StegHunter package."""
