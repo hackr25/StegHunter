@@ -1,0 +1,52 @@
+# StegHunter Configuration File
+
+# ── Thresholds ─────────────────────────────────────────
+suspicion_threshold: 50.0   # 0-100 score above which = HIGH SUSPICION
+
+# ── Method weights (must sum to 1.0) ───────────────────
+weights:
+  basic:             0.05   # file-size ratio heuristic
+  lsb:               0.25   # LSB entropy + chi-square
+  chi_square:        0.10   # pixel histogram entropy
+  pixel_differencing: 0.05  # adjacent pixel std deviation
+  ela:               0.20   # Error Level Analysis (new)
+  jpeg_ghost:        0.10   # JPEG Ghost sweep (JPEG only, new)
+  clone_detection:   0.15   # copy-move clone blocks (new)
+  noise:             0.05   # Laplacian noise map (new)
+  metadata:          0.05   # EXIF anomaly score (new)
+
+# ── Toggle methods on/off without changing code ────────
+enabled_methods:
+  - basic
+  - lsb
+  - chi_square
+  - pixel_differencing
+  - ela               # new
+  - jpeg_ghost        # new — JPEG only
+  - clone_detection   # new
+  - noise             # new
+  - metadata          # new
+  - jpeg_structure    # new
+  - format_validation # new
+
+# ── Output settings ────────────────────────────────────
+output:
+  default_format:  json     # json or csv
+  include_detailed: false
+  save_ela_heatmap: false   # auto-save ELA map on analyze
+  save_ghost_map:   false   # auto-save ghost map on analyze
+
+# ── Performance ────────────────────────────────────────
+performance:
+  max_workers:       4      # parallel workers for batch
+  chunk_size:        10     # files before progress update
+  ela_quality:       95     # JPEG recompression quality for ELA
+  ela_scale:         10     # ELA amplification factor
+  clone_block_size:  16     # pixels per block for clone detection
+  noise_block_size:  32     # pixels per block for noise map
+
+# ── Video analysis ─────────────────────────────────────
+video:
+  frame_sample_rate:     10    # analyze every Nth frame for LSB
+  duplicate_threshold: 0.98    # pixel similarity to flag duplicate
+  diff_spike_multiplier: 3.0   # std devs above mean = anomalous diff
