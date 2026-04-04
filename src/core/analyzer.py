@@ -1,10 +1,7 @@
 """
 Main steganography analysis orchestrator.
-Updated in Phase 1 to include forensic analysis modules:
-  - JPEG Structure Parser
-  - Metadata Analyzer (EXIF)
-  - Format Validator (magic bytes + stego signatures)
-  - Social Media Platform Detector
+Phase 1: JPEG Structure, Metadata, Format Validator, Social Media Detector.
+Phase 2: ELA (Error Level Analysis).
 """
 from __future__ import annotations
 
@@ -17,15 +14,17 @@ from .lsb_analyzer import lsb_analysis
 from .statistical_tests import chi_square_test, pixel_value_differencing
 
 
-# Default weights — updated with Phase 1 forensic methods
+# Default weights — Phase 1 + Phase 2 (ELA)
 _DEFAULT_WEIGHTS: dict[str, float] = {
-    "basic":              0.15,
-    "lsb":                0.30,
+    "basic":              0.05,
+    "lsb":                0.25,
     "chi_square":         0.10,
     "pixel_differencing": 0.05,
-    "jpeg_structure":     0.15,
-    "metadata":           0.10,
-    "format_validation":  0.15,
+    "jpeg_structure":     0.10,
+    "metadata":           0.05,
+    "format_validation":  0.10,
+    "ela":                0.20,   # Phase 2
+    "jpeg_ghost":         0.10,   # Phase 2 (placeholder)
 }
 
 SUPPORTED_FORMATS: frozenset[str] = frozenset(
@@ -136,6 +135,18 @@ class SteganographyAnalyzer:
             except Exception as exc:
                 results["methods"]["social_media"] = {"error": str(exc)}
 
+
+        # ── Phase 2: ELA — Error Level Analysis ──────────────────────
+        if "ela" in enabled:
+            try:
+                from src.core.ela_analyzer import ELAAnalyzer
+                results["methods"]["ela"] = ELAAnalyzer().analyze(
+                    path,
+                    quality=self._cfg_int("performance.ela_quality", 95),
+                    scale=self._cfg_int("performance.ela_scale", 10),
+                )
+            except Exception as exc:
+                results["methods"]["ela"] = {"error": str(exc), "suspicion_score": 0.0}
         # ── Final scoring ─────────────────────────────────────────────
         results["final_suspicion_score"] = round(
             self._weighted_score(results["methods"]), 2
@@ -147,6 +158,14 @@ class SteganographyAnalyzer:
     # Internals
     # ------------------------------------------------------------------
 
+
+    def _cfg_int(self, key: str, default: int) -> int:
+        """Read an integer from config, return default if missing."""
+        if self._config is None:
+            return default
+        val = self._config.get(key)
+        return int(val) if val is not None else default
+
     def _enabled_methods(self) -> list[str]:
         """Return the list of enabled method names from config, or all defaults."""
         if self._config is not None:
@@ -156,6 +175,7 @@ class SteganographyAnalyzer:
         return [
             "basic", "lsb", "chi_square", "pixel_differencing",
             "jpeg_structure", "metadata", "format_validation", "social_media",
+            "ela",
         ]
 
     def _weighted_score(self, methods: dict) -> float:
@@ -174,6 +194,7 @@ class SteganographyAnalyzer:
             "jpeg_structure":     methods.get("jpeg_structure",    {}).get("suspicion_score",       0.0),
             "metadata":           methods.get("metadata",          {}).get("suspicion_score",       0.0),
             "format_validation":  methods.get("format_validation", {}).get("suspicion_score",       0.0),
+            "ela":                methods.get("ela",               {}).get("suspicion_score",       0.0),
         }
 
         total_weight = sum(weights.get(k, 0.0) for k in score_map if k in weights)
