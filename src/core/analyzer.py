@@ -23,8 +23,10 @@ _DEFAULT_WEIGHTS: dict[str, float] = {
     "jpeg_structure":     0.10,
     "metadata":           0.05,
     "format_validation":  0.10,
-    "ela":                0.20,   # Phase 2
-    "jpeg_ghost":         0.10,   # Phase 2 (placeholder)
+    "ela":                0.20,   
+    "jpeg_ghost":         0.10,
+    "noise":              0.10,
+    "color_space":        0.10,  
 }
 
 SUPPORTED_FORMATS: frozenset[str] = frozenset(
@@ -147,6 +149,34 @@ class SteganographyAnalyzer:
                 )
             except Exception as exc:
                 results["methods"]["ela"] = {"error": str(exc), "suspicion_score": 0.0}
+        # JPEG Ghost
+        if "jpeg_ghost" in enabled and ext in JPEG_FORMATS:
+            try:
+                from src.core.jpeg_ghost_analyzer import JPEGGhostAnalyzer
+                results["methods"]["jpeg_ghost"] = JPEGGhostAnalyzer().analyze(path)
+            except Exception as exc:
+                results["methods"]["jpeg_ghost"] = {"error": str(exc), "suspicion_score": 0.0}
+
+        # Noise Analysis
+        if "noise" in enabled:
+            try:
+                from src.core.noise_analyzer import NoiseAnalyzer
+                results["methods"]["noise"] = NoiseAnalyzer().analyze(path)
+            except Exception as exc:
+                results["methods"]["noise"] = {"error": str(exc), "suspicion_score": 0.0}
+
+        # Color Space Analysis
+        if "color_space" in enabled:
+            try:
+                from src.core.color_space_analyzer import ColorSpaceAnalyzer
+                results["methods"]["color_space"] = ColorSpaceAnalyzer().analyze(path)
+            except Exception as exc:
+                results["methods"]["color_space"] = {"error": str(exc), "suspicion_score": 0.0}
+        
+        
+        
+        
+        
         # ── Final scoring ─────────────────────────────────────────────
         results["final_suspicion_score"] = round(
             self._weighted_score(results["methods"]), 2
@@ -195,6 +225,9 @@ class SteganographyAnalyzer:
             "metadata":           methods.get("metadata",          {}).get("suspicion_score",       0.0),
             "format_validation":  methods.get("format_validation", {}).get("suspicion_score",       0.0),
             "ela":                methods.get("ela",               {}).get("suspicion_score",       0.0),
+            "jpeg_ghost": methods.get("jpeg_ghost", {}).get("suspicion_score", 0.0),
+            "noise": methods.get("noise", {}).get("suspicion_score", 0.0),
+            "color_space": methods.get("color_space", {}).get("suspicion_score", 0.0),
         }
 
         total_weight = sum(weights.get(k, 0.0) for k in score_map if k in weights)
