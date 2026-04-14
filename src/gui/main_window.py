@@ -22,7 +22,7 @@ from .batch_dialog import BatchProcessingDialog
 from src.core.pdf_reporter import PDFReporter
 from src.forensics.hash_entropy import calculate_hashes,calculate_entropy
 from .train_model_dialog import TrainModelDialog
-
+from .results_panel import ResultsPanel
 
 
 class SteganographyAnalyzerWorker(QThread):
@@ -45,12 +45,20 @@ class SteganographyAnalyzerWorker(QThread):
                 classifier = MLSteganalysisClassifier(self.model_path)
                 result = classifier.predict(self.image_path)
                 
+                prob_score = result['probability'] * 100 
+                
                 self.finished_signal.emit({
                     'filename': Path(self.image_path).name,
                     'method': 'ML-based',
                     'prediction': result['prediction'],
                     'probability': result['probability'],
-                    'confidence': result['confidence']
+                    'confidence': result['confidence'],
+                    'final_suspicion_score': prob_score, # ADD THIS
+                    'explanation': { # ADD THIS
+                        'verdict': "Highly Suspicious" if result['prediction'] == 1 else "Clean",
+                        'detailed_findings': [f"ML Model predicts steganography with {prob_score:.2f}% probability."],
+                        'summary': f"ML Analysis complete. Verdict: {'Stego' if result['prediction'] == 1 else 'Clean'}"
+                    }
                 })
             else:
                 results = self.analyzer.analyze_image(self.image_path)
@@ -81,8 +89,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         
         # Main layout
-        main_layout = QVBoxLayout()
-        central_widget.setLayout(main_layout)
+        self.main_layout = QVBoxLayout()
+        central_widget.setLayout(self.main_layout)
         
         # Create menu bar
         self.create_menu_bar()
@@ -92,7 +100,7 @@ class MainWindow(QMainWindow):
         
         # Create main splitter for image viewer and results
         self.main_splitter = QSplitter(Qt.Horizontal)
-        main_layout.addWidget(self.main_splitter)
+        self.main_layout.addWidget(self.main_splitter)
         
         # Left panel - Image viewer
         self.create_image_viewer()
@@ -117,6 +125,9 @@ class MainWindow(QMainWindow):
         
         # Styling
         self.apply_styles()
+        
+        self.results_panel = ResultsPanel()
+        self.main_layout.addWidget(self.results_panel)
     
     def create_menu_bar(self):
         """Create application menu bar"""
@@ -323,6 +334,15 @@ class MainWindow(QMainWindow):
         self.create_metadata_tab()
         self.results_tab.addTab(self.metadata_tab, "Metadata")
         
+        self.create_noise_tab()
+        self.results_tab.addTab(self.noise_tab, "Noise")
+
+        self.create_color_tab()
+        self.results_tab.addTab(self.color_tab, "Color Space")
+
+        self.create_ghost_tab()
+        self.results_tab.addTab(self.ghost_tab, "JPEG Ghost")
+        
         # Quick actions
         actions_layout = QHBoxLayout()
         
@@ -337,6 +357,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(actions_layout)
         
         self.results_group.setLayout(layout)
+    
+
     
     def create_summary_tab(self):
         """Create summary results tab"""
@@ -459,6 +481,37 @@ class MainWindow(QMainWindow):
         layout.addLayout(ctrl)
 
         self.ela_tab.setLayout(layout)
+        
+    def create_noise_tab(self):
+        self.noise_tab = QWidget()
+        layout = QVBoxLayout()
+        self.noise_text = QTextEdit()
+        self.noise_text.setReadOnly(True)
+        self.noise_text.setStyleSheet("font-family: Consolas; background: #f9f9f9;")
+        layout.addWidget(QLabel("Noise Analysis Statistics:"))
+        layout.addWidget(self.noise_text)
+        self.noise_tab.setLayout(layout)
+
+    def create_color_tab(self):
+        self.color_tab = QWidget()
+        layout = QVBoxLayout()
+        self.color_text = QTextEdit()
+        self.color_text.setReadOnly(True)
+        self.color_text.setStyleSheet("font-family: Consolas; background: #f9f9f9;")
+        layout.addWidget(QLabel("Color Space (YCbCr) Analysis:"))
+        layout.addWidget(self.color_text)
+        self.color_tab.setLayout(layout)
+
+    def create_ghost_tab(self):
+        self.ghost_tab = QWidget()
+        layout = QVBoxLayout()
+        self.ghost_text = QTextEdit()
+        self.ghost_text.setReadOnly(True)
+        self.ghost_text.setStyleSheet("font-family: Consolas; background: #f9f9f9;")
+        layout.addWidget(QLabel("JPEG Ghost Analysis:"))
+        layout.addWidget(self.ghost_text)
+        self.ghost_tab.setLayout(layout)
+
 
     def run_ela_analysis(self):
         """Run ELA on current image and display result."""
@@ -874,7 +927,15 @@ class MainWindow(QMainWindow):
         
         self.status_bar.showMessage("Analysis complete")
         
+        self.update_ela_tab(results)
+        self.update_noise_tab(results)
+        self.update_color_tab(results)
+        self.update_ghost_tab(results)
+        
         # Switch to summary tab
+        self.results_tab.setCurrentIndex(0)
+        self.results_panel.update_results(results)
+        self.status_bar.showMessage("Analysis complete")
         self.results_tab.setCurrentIndex(0)
     
     def analysis_error(self, error_msg):
@@ -916,6 +977,45 @@ class MainWindow(QMainWindow):
             
             self.status_indicator.setText(f"Status: {status} (Threshold: {threshold})")
             self.status_indicator.setStyleSheet(f"QLabel {{ font-size: 16px; padding: 10px; color: {status_color}; font-weight: bold; }}")
+    
+    def update_noise_tab(self, results):
+        if 'methods' in results and 'noise' in results['methods']:
+            data = results['methods']['noise']
+            text = f"Noise Standard Deviation: {data.get('noise_std', 'N/A')}\n"
+            text += f"Noise Variance: {data.get('noise_variance', 'N/A')}\n"
+            text += f"Suspicion Score: {data.get('suspicion_score', 'N/A')}"
+            self.noise_text.setPlainText(text)
+
+    def update_color_tab(self, results):
+        if 'methods' in results and 'color_space' in results['methods']:
+            data = results['methods']['color_space']
+            text = f"Cb Entropy: {data.get('cb_entropy', 'N/A')}\n"
+            text += f"Cr Entropy: {data.get('cr_entropy', 'N/A')}\n"
+            text += f"Suspicion Score: {data.get('suspicion_score', 'N/A')}"
+            self.color_text.setPlainText(text)
+            
+    def update_ela_tab(self, results):
+        """Update the ELA tab with results from the main analysis orchestrator"""
+        if 'methods' in results and 'ela' in results['methods']:
+            data = results['methods']['ela']
+            score = data.get('suspicion_score', 0)
+            
+            # Determine color based on score
+            color = "#e74c3c" if score >= 50 else "#27ae60"
+            
+            # Update the label in the ELA tab
+            self.ela_score_label.setText(f"ELA Score: {score:.1f}/100")
+            self.ela_score_label.setStyleSheet(
+                f"QLabel {{ font-size: 13px; font-weight: bold; color: {color}; }}"
+            )
+
+    def update_ghost_tab(self, results):
+        if 'methods' in results and 'jpeg_ghost' in results['methods']:
+            data = results['methods']['jpeg_ghost']
+            text = f"Best Fit Quality: {data.get('best_fit_quality', 'N/A')}\n"
+            text += f"Min MAE: {data.get('min_mae', 'N/A')}\n"
+            text += f"Suspicion Score: {data.get('suspicion_score', 'N/A')}"
+            self.ghost_text.setPlainText(text)
     
     def update_details_results(self, results):
         """Update detailed results display"""

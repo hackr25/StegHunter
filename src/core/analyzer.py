@@ -12,6 +12,7 @@ from PIL import Image
 
 from .lsb_analyzer import lsb_analysis
 from .statistical_tests import chi_square_test, pixel_value_differencing
+from .reasoning_engine import ReasoningEngine
 
 
 # Default weights — Phase 1 + Phase 2 (ELA)
@@ -181,6 +182,11 @@ class SteganographyAnalyzer:
         results["final_suspicion_score"] = round(
             self._weighted_score(results["methods"]), 2
         )
+        try:
+            reasoner = ReasoningEngine()
+            results["explanation"] = reasoner.generate_explanation(results)
+        except Exception as e:
+            results["explanation"] = {"error": f"Reasoning engine failed: {str(e)}"}
         results["analysis_time"] = round(time.time() - start, 3)
         return results
 
