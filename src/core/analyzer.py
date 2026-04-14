@@ -27,7 +27,8 @@ _DEFAULT_WEIGHTS: dict[str, float] = {
     "ela":                0.20,   
     "jpeg_ghost":         0.10,
     "noise":              0.10,
-    "color_space":        0.10,  
+    "color_space":        0.10,
+    "clone_detection":    0.15,
 }
 
 SUPPORTED_FORMATS: frozenset[str] = frozenset(
@@ -173,6 +174,15 @@ class SteganographyAnalyzer:
                 results["methods"]["color_space"] = ColorSpaceAnalyzer().analyze(path)
             except Exception as exc:
                 results["methods"]["color_space"] = {"error": str(exc), "suspicion_score": 0.0}
+                
+        # Clone Detection (Phase 3)
+        if "clone_detection" in enabled:
+            try:
+                from src.core.clone_detector import CloneDetector
+                results["methods"]["clone_detection"] = CloneDetector().analyze(path)
+            except Exception as exc:
+                results["methods"]["clone_detection"] = {"error": str(exc), "suspicion_score": 0.0}
+
         
         
         
@@ -211,7 +221,7 @@ class SteganographyAnalyzer:
         return [
             "basic", "lsb", "chi_square", "pixel_differencing",
             "jpeg_structure", "metadata", "format_validation", "social_media",
-            "ela", "jpeg_ghost", "noise", "color_space",
+            "ela", "jpeg_ghost", "noise", "color_space", "clone_detection", 
         ]
 
     def _weighted_score(self, methods: dict) -> float:
@@ -231,9 +241,10 @@ class SteganographyAnalyzer:
             "metadata":           methods.get("metadata",          {}).get("suspicion_score",       0.0),
             "format_validation":  methods.get("format_validation", {}).get("suspicion_score",       0.0),
             "ela":                methods.get("ela",               {}).get("suspicion_score",       0.0),
-            "jpeg_ghost":         methods.get("jpeg_ghost",        {}).get("suspicion_score", 0.0),
-            "noise":              methods.get("noise",             {}).get("suspicion_score", 0.0),
-            "color_space":        methods.get("color_space",       {}).get("suspicion_score", 0.0),
+            "jpeg_ghost":         methods.get("jpeg_ghost",        {}).get("suspicion_score",       0.0),
+            "noise":              methods.get("noise",             {}).get("suspicion_score",       0.0),
+            "color_space":        methods.get("color_space",       {}).get("suspicion_score",       0.0),
+            "clone_detection":    methods.get("clone_detection",   {}).get("suspicion_score",       0.0),
         }
 
         total_weight = sum(weights.get(k, 0.0) for k in score_map if k in weights)

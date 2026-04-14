@@ -343,6 +343,10 @@ class MainWindow(QMainWindow):
         self.create_ghost_tab()
         self.results_tab.addTab(self.ghost_tab, "JPEG Ghost")
         
+        self.create_clone_tab()
+        self.results_tab.addTab(self.clone_tab, "Clone Detection")
+
+        
         # Quick actions
         actions_layout = QHBoxLayout()
         
@@ -931,6 +935,7 @@ class MainWindow(QMainWindow):
         self.update_noise_tab(results)
         self.update_color_tab(results)
         self.update_ghost_tab(results)
+        self.update_clone_tab(results)
         
         # Switch to summary tab
         self.results_tab.setCurrentIndex(0)
@@ -1065,6 +1070,27 @@ class MainWindow(QMainWindow):
             method_text += f"Method: {results.get('method', 'ML-based')}\n"
             
             self.methods_text.setPlainText(method_text)
+    
+    def create_clone_tab(self):
+        """Create the Clone Detection results tab"""
+        self.clone_tab = QWidget()
+        layout = QVBoxLayout()
+        self.clone_text = QTextEdit()
+        self.clone_text.setReadOnly(True)
+        self.clone_text.setStyleSheet("font-family: Consolas; background: #f9f9f9;")
+        layout.addWidget(QLabel("Clone Analysis (Copy-Move Forgery):"))
+        layout.addWidget(self.clone_text)
+        self.clone_tab.setLayout(layout)
+    
+    def update_clone_tab(self, results):
+        if 'methods' in results and 'clone_detection' in results['methods']:
+            data = results['methods']['clone_detection']
+            text = f"Identical Patches Found: {data.get('clone_matches', 'N/A')}\n"
+            text += f"Suspicion Score: {data.get('suspicion_score', 'N/A')}\n"
+            text += "\nNote: High match counts suggest that parts of the image were copied and pasted."
+            self.clone_text.setPlainText(text)
+
+    
     
     def clear_results(self):
         """Clear all results"""

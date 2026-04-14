@@ -63,6 +63,13 @@ class ReasoningEngine:
             meta_score = methods["metadata"].get("suspicion_score", 0)
             if meta_score > self.thresholds["metadata"]:
                 findings.append("ℹ️ Metadata Irregularity: The image contains suspicious or stripped EXIF data, often seen in tools that cleanse footprints.")
+        
+        # 7. Clone Detection Reasoning
+        if "clone_detection" in methods:
+            clone_score = methods["clone_detection"].get("suspicion_score", 0)
+            if clone_score > 30.0:
+                findings.append("❌ Clone Detection flagged: Identical pixel patterns found in different areas of the image. This is a strong indicator of Copy-Move forgery (cloning).")
+
 
         # --- Final Verdict Logic ---
         final_score = results.get("final_suspicion_score", 0)
