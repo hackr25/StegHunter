@@ -211,7 +211,7 @@ class SteganographyAnalyzer:
         return [
             "basic", "lsb", "chi_square", "pixel_differencing",
             "jpeg_structure", "metadata", "format_validation", "social_media",
-            "ela",
+            "ela", "jpeg_ghost", "noise", "color_space",
         ]
 
     def _weighted_score(self, methods: dict) -> float:
@@ -231,9 +231,9 @@ class SteganographyAnalyzer:
             "metadata":           methods.get("metadata",          {}).get("suspicion_score",       0.0),
             "format_validation":  methods.get("format_validation", {}).get("suspicion_score",       0.0),
             "ela":                methods.get("ela",               {}).get("suspicion_score",       0.0),
-            "jpeg_ghost": methods.get("jpeg_ghost", {}).get("suspicion_score", 0.0),
-            "noise": methods.get("noise", {}).get("suspicion_score", 0.0),
-            "color_space": methods.get("color_space", {}).get("suspicion_score", 0.0),
+            "jpeg_ghost":         methods.get("jpeg_ghost",        {}).get("suspicion_score", 0.0),
+            "noise":              methods.get("noise",             {}).get("suspicion_score", 0.0),
+            "color_space":        methods.get("color_space",       {}).get("suspicion_score", 0.0),
         }
 
         total_weight = sum(weights.get(k, 0.0) for k in score_map if k in weights)
