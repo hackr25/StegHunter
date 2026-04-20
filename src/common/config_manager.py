@@ -25,15 +25,60 @@ class ConfigManager:
         self._validate_config()
     
     def _validate_config(self) -> None:
-        """Validate configuration at load time."""
-        try:
-            # Skip validation for now to avoid import issues
-            # Validators will be applied at CLI level instead
-            pass
-        except Exception as e:
-            # Log warning but continue with defaults
-            import sys
-            print(f"Warning: Config validation failed: {e}", file=sys.stderr)
+        """Validate configuration at load time.
+        
+        Checks:
+        - Weights sum to approximately 1.0
+        - All enabled methods are valid
+        - Performance settings are in valid ranges
+        """
+        from .validators import ConfigValidator
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Validate weights
+        weights = self.config.get('weights', {})
+        if weights:
+            is_valid, error_msg = ConfigValidator.validate_weights(weights)
+            if not is_valid:
+                logger.warning(f"Config validation: {error_msg}")
+                # Auto-normalize weights
+                total = sum(weights.values())
+                if total > 0:
+                    for k in weights:
+                        weights[k] = weights[k] / total
+                    self.config['weights'] = weights
+                    logger.info(f"Weights auto-normalized to sum to 1.0")
+        
+        # Validate enabled methods
+        enabled_methods = self.config.get('enabled_methods', [])
+        valid_methods = [
+            'basic', 'lsb', 'chi_square', 'pixel_differencing',
+            'jpeg_structure', 'metadata', 'format_validation', 'social_media',
+            'ela', 'jpeg_ghost', 'noise', 'color_space', 'clone_detection',
+            'video_frame_analysis', 'video_container', 'frequency_analysis'
+        ]
+        if enabled_methods:
+            is_valid, error_msg = ConfigValidator.validate_enabled_methods(enabled_methods, valid_methods)
+            if not is_valid:
+                logger.warning(f"Config validation: {error_msg}")
+        
+        # Validate performance settings
+        performance = self.config.get('performance', {})
+        if performance:
+            max_workers = performance.get('max_workers', 4)
+            timeout = performance.get('timeout_seconds', 30)
+            
+            if not (1 <= max_workers <= 64):
+                logger.warning(f"max_workers={max_workers} out of range [1,64], using 4")
+                performance['max_workers'] = 4
+                
+            if not (1 <= timeout <= 300):
+                logger.warning(f"timeout_seconds={timeout} out of range [1,300], using 30")
+                performance['timeout_seconds'] = 30
+            
+            self.config['performance'] = performance
     
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML file.

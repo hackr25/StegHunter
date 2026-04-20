@@ -6,6 +6,8 @@ Phase 2: ELA (Error Level Analysis).
 from __future__ import annotations
 
 import time
+import logging
+import sys
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -15,6 +17,10 @@ from .lsb_analyzer import lsb_analysis
 from .statistical_tests import chi_square_test, pixel_value_differencing
 from .reasoning_engine import ReasoningEngine
 from ..common.constants import DEFAULT_WEIGHTS, SUPPORTED_FORMATS, JPEG_FORMATS
+from ..common.timeout_handler import TimeoutHandler, TimeoutException
+
+# Configure logger for error reporting
+logger = logging.getLogger(__name__)
 
 # Lazy imports for Phase 4 to avoid circular dependencies
 _video_analyzer = None
@@ -87,6 +93,7 @@ class SteganographyAnalyzer:
                 - method_scores: Dict of individual method scores
                 - methods: Dict of detailed results per method
                 - analysis_time: Total analysis time in seconds
+                - errors: List of methods that failed
                 
         Raises:
             InvalidImageError: If image cannot be loaded or validated
@@ -113,22 +120,47 @@ class SteganographyAnalyzer:
             "mode":          image.mode,
             "analysis_time": 0.0,
             "methods":       {},
+            "errors":        [],  # Track methods that failed
         }
 
         enabled = self._enabled_methods()
 
-        # ── Original detection methods ────────────────────────────────
+        # ── Original detection methods (with error isolation) ────────────────────────
         if "basic" in enabled:
-            results["methods"]["basic"] = self.basic_analysis(path)
+            try:
+                results["methods"]["basic"] = self.basic_analysis(path)
+            except Exception as exc:
+                error_msg = f"basic: {str(exc)}"
+                results["methods"]["basic"] = {"error": error_msg, "basic_suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'basic' failed: {exc}", exc_info=True)
 
         if "lsb" in enabled:
-            results["methods"]["lsb"] = lsb_analysis(image)
+            try:
+                results["methods"]["lsb"] = lsb_analysis(image)
+            except Exception as exc:
+                error_msg = f"lsb: {str(exc)}"
+                results["methods"]["lsb"] = {"error": error_msg, "lsb_suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'lsb' failed: {exc}", exc_info=True)
 
         if "chi_square" in enabled:
-            results["methods"]["chi_square"] = chi_square_test(image)
+            try:
+                results["methods"]["chi_square"] = chi_square_test(image)
+            except Exception as exc:
+                error_msg = f"chi_square: {str(exc)}"
+                results["methods"]["chi_square"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'chi_square' failed: {exc}", exc_info=True)
 
         if "pixel_differencing" in enabled:
-            results["methods"]["pixel_differencing"] = pixel_value_differencing(image)
+            try:
+                results["methods"]["pixel_differencing"] = pixel_value_differencing(image)
+            except Exception as exc:
+                error_msg = f"pixel_differencing: {str(exc)}"
+                results["methods"]["pixel_differencing"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'pixel_differencing' failed: {exc}", exc_info=True)
 
         # ── Phase 1: Format Validation (all image types) ──────────────
         if "format_validation" in enabled:
@@ -136,7 +168,10 @@ class SteganographyAnalyzer:
                 from src.forensics.format_validator import FormatValidator
                 results["methods"]["format_validation"] = FormatValidator().validate(path)
             except Exception as exc:
-                results["methods"]["format_validation"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"format_validation: {str(exc)}"
+                results["methods"]["format_validation"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'format_validation' failed: {exc}", exc_info=True)
 
         # ── Phase 1: JPEG Structure (JPEG only) ───────────────────────
         if "jpeg_structure" in enabled and ext in JPEG_FORMATS:
@@ -144,7 +179,10 @@ class SteganographyAnalyzer:
                 from src.forensics.jpeg_structure import JPEGStructureParser
                 results["methods"]["jpeg_structure"] = JPEGStructureParser().parse(path)
             except Exception as exc:
-                results["methods"]["jpeg_structure"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"jpeg_structure: {str(exc)}"
+                results["methods"]["jpeg_structure"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'jpeg_structure' failed: {exc}", exc_info=True)
 
         # ── Phase 1: Metadata / EXIF Analysis ────────────────────────
         if "metadata" in enabled:
@@ -152,7 +190,10 @@ class SteganographyAnalyzer:
                 from src.forensics.metadata_analyzer import MetadataAnalyzer
                 results["methods"]["metadata"] = MetadataAnalyzer().analyze(path)
             except Exception as exc:
-                results["methods"]["metadata"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"metadata: {str(exc)}"
+                results["methods"]["metadata"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'metadata' failed: {exc}", exc_info=True)
 
         # ── Phase 1: Social Media Detection (JPEG only) ───────────────
         if "social_media" in enabled and ext in JPEG_FORMATS:
@@ -160,27 +201,53 @@ class SteganographyAnalyzer:
                 from src.forensics.social_media_detector import SocialMediaDetector
                 results["methods"]["social_media"] = SocialMediaDetector().identify(path)
             except Exception as exc:
-                results["methods"]["social_media"] = {"error": str(exc)}
+                error_msg = f"social_media: {str(exc)}"
+                results["methods"]["social_media"] = {"error": error_msg}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'social_media' failed: {exc}", exc_info=True)
 
 
         # ── Phase 2: ELA — Error Level Analysis ──────────────────────
         if "ela" in enabled:
             try:
                 from src.core.ela_analyzer import ELAAnalyzer
-                results["methods"]["ela"] = ELAAnalyzer().analyze(
-                    path,
-                    quality=self._cfg_int("performance.ela_quality", 95),
-                    scale=self._cfg_int("performance.ela_scale", 10),
-                )
+                timeout_sec = self._get_timeout()
+                
+                def run_ela():
+                    return ELAAnalyzer().analyze(
+                        path,
+                        quality=self._cfg_int("performance.ela_quality", 95),
+                        scale=self._cfg_int("performance.ela_scale", 10),
+                    )
+                
+                # Wrap with timeout
+                try:
+                    results["methods"]["ela"] = TimeoutHandler.with_graceful_fallback(
+                        timeout_seconds=timeout_sec,
+                        fallback_value={"suspicion_score": 0.0}
+                    )(run_ela)()
+                except TimeoutException as te:
+                    error_msg = f"ela: {str(te)}"
+                    results["methods"]["ela"] = {"error": error_msg, "suspicion_score": 0.0, "timed_out": True}
+                    results["errors"].append(error_msg)
+                    logger.warning(f"Method 'ela' timed out after {timeout_sec}s")
+                    
             except Exception as exc:
-                results["methods"]["ela"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"ela: {str(exc)}"
+                results["methods"]["ela"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'ela' failed: {exc}", exc_info=True)
+                
         # JPEG Ghost
         if "jpeg_ghost" in enabled and ext in JPEG_FORMATS:
             try:
                 from src.core.jpeg_ghost_analyzer import JPEGGhostAnalyzer
                 results["methods"]["jpeg_ghost"] = JPEGGhostAnalyzer().analyze(path)
             except Exception as exc:
-                results["methods"]["jpeg_ghost"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"jpeg_ghost: {str(exc)}"
+                results["methods"]["jpeg_ghost"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'jpeg_ghost' failed: {exc}", exc_info=True)
 
         # Noise Analysis
         if "noise" in enabled:
@@ -188,7 +255,10 @@ class SteganographyAnalyzer:
                 from src.core.noise_analyzer import NoiseAnalyzer
                 results["methods"]["noise"] = NoiseAnalyzer().analyze(path)
             except Exception as exc:
-                results["methods"]["noise"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"noise: {str(exc)}"
+                results["methods"]["noise"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'noise' failed: {exc}", exc_info=True)
 
         # Color Space Analysis
         if "color_space" in enabled:
@@ -196,32 +266,73 @@ class SteganographyAnalyzer:
                 from src.core.color_space_analyzer import ColorSpaceAnalyzer
                 results["methods"]["color_space"] = ColorSpaceAnalyzer().analyze(path)
             except Exception as exc:
-                results["methods"]["color_space"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"color_space: {str(exc)}"
+                results["methods"]["color_space"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'color_space' failed: {exc}", exc_info=True)
                 
-        # Clone Detection (Phase 3)
+        # Clone Detection (Phase 3) — Heavy computation, add timeout
         if "clone_detection" in enabled:
             try:
                 from src.core.clone_detector import CloneDetector
-                results["methods"]["clone_detection"] = CloneDetector().analyze(path)
+                timeout_sec = self._get_timeout()
+                
+                def run_clone_detection():
+                    return CloneDetector().analyze(path)
+                
+                # Wrap with timeout
+                try:
+                    results["methods"]["clone_detection"] = TimeoutHandler.with_graceful_fallback(
+                        timeout_seconds=timeout_sec,
+                        fallback_value={"suspicion_score": 0.0}
+                    )(run_clone_detection)()
+                except TimeoutException as te:
+                    error_msg = f"clone_detection: {str(te)}"
+                    results["methods"]["clone_detection"] = {"error": error_msg, "suspicion_score": 0.0, "timed_out": True}
+                    results["errors"].append(error_msg)
+                    logger.warning(f"Method 'clone_detection' timed out after {timeout_sec}s")
+                    
             except Exception as exc:
-                results["methods"]["clone_detection"] = {"error": str(exc), "suspicion_score": 0.0}
+                error_msg = f"clone_detection: {str(exc)}"
+                results["methods"]["clone_detection"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'clone_detection' failed: {exc}", exc_info=True)
 
         # ── Final scoring ─────────────────────────────────────────────
         results["final_suspicion_score"] = round(
             self._weighted_score(results["methods"]), 2
         )
+        results["is_suspicious"] = results["final_suspicion_score"] >= (
+            self._config.get("suspicion_threshold", 50.0) if self._config else 50.0
+        )
+        
         try:
             reasoner = ReasoningEngine()
             results["explanation"] = reasoner.generate_explanation(results)
         except Exception as e:
             results["explanation"] = {"error": f"Reasoning engine failed: {str(e)}"}
+            logger.warning(f"Reasoning engine failed: {e}", exc_info=True)
+            
         results["analysis_time"] = round(time.time() - start, 3)
+        
+        # Log summary of errors if any
+        if results["errors"]:
+            logger.info(f"Analysis completed with {len(results['errors'])} method error(s)")
+            
         return results
 
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 
+    def _get_timeout(self) -> int:
+        """Get analysis timeout from config, default 30 seconds."""
+        if self._config is None:
+            return 30
+        timeout = self._config.get("performance", {}).get("timeout_seconds")
+        if timeout is None:
+            return 30
+        return max(1, min(300, int(timeout)))  # Clamp between 1-300 seconds
 
     def _cfg_int(self, key: str, default: int) -> int:
         """Read an integer from config, return default if missing."""
