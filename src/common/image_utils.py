@@ -4,39 +4,85 @@ Common image utility functions for StegHunter
 
 from PIL import Image
 from pathlib import Path
+from typing import Optional, Dict, Any
+from .constants import SUPPORTED_FORMATS
+from .exceptions import InvalidImageError
 
-SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
 
-def validate_image_path(image_path):
-    """Validate that the path exists and is a supported image format"""
+def validate_image_path(image_path: str) -> Path:
+    """Validate that the path exists and is a supported image format.
+    
+    Args:
+        image_path: Path to image file
+        
+    Returns:
+        Validated Path object
+        
+    Raises:
+        InvalidImageError: If file doesn't exist or format not supported
+    """
     path = Path(image_path)
     
     if not path.exists():
-        raise FileNotFoundError(f"Image file not found: {image_path}")
+        raise InvalidImageError(f"Image file not found: {image_path}")
+    
+    if not path.is_file():
+        raise InvalidImageError(f"Path is not a file: {image_path}")
     
     if path.suffix.lower() not in SUPPORTED_FORMATS:
-        raise ValueError(f"Unsupported image format: {path.suffix}. Supported: {SUPPORTED_FORMATS}")
+        raise InvalidImageError(
+            f"Unsupported image format: {path.suffix}. "
+            f"Supported: {', '.join(sorted(SUPPORTED_FORMATS))}"
+        )
     
     return path
 
-def get_image_info(image_path):
-    """Get basic information about an image file"""
+
+def get_image_info(image_path: str) -> Dict[str, Any]:
+    """Get basic information about an image file.
+    
+    Args:
+        image_path: Path to image file
+        
+    Returns:
+        Dictionary with image metadata
+        
+    Raises:
+        InvalidImageError: If image cannot be opened or analyzed
+    """
     path = validate_image_path(image_path)
     
-    with Image.open(path) as img:
-        info = {
-            'Filename': path.name,
-            'Full Path': str(path.resolve()),
-            'File Size': f"{path.stat().st_size} bytes",
-            'Format': img.format,
-            'Dimensions': f"{img.width} x {img.height}",
-            'Mode': img.mode,
-            'Supported': 'Yes' if path.suffix.lower() in SUPPORTED_FORMATS else 'No'
-        }
+    try:
+        with Image.open(path) as img:
+            info = {
+                'Filename': path.name,
+                'Full Path': str(path.resolve()),
+                'File Size': f"{path.stat().st_size} bytes",
+                'Format': img.format,
+                'Dimensions': f"{img.width} x {img.height}",
+                'Mode': img.mode,
+                'Supported': 'Yes'
+            }
+    except Exception as e:
+        raise InvalidImageError(f"Failed to open image file {image_path}: {e}")
     
     return info
 
-def load_image(image_path):
-    """Load an image and return PIL Image object"""
+
+def load_image(image_path: str) -> Image.Image:
+    """Load an image and return PIL Image object.
+    
+    Args:
+        image_path: Path to image file
+        
+    Returns:
+        PIL Image object
+        
+    Raises:
+        InvalidImageError: If image cannot be loaded
+    """
     path = validate_image_path(image_path)
-    return Image.open(path)
+    try:
+        return Image.open(path)
+    except Exception as e:
+        raise InvalidImageError(f"Failed to load image {image_path}: {e}")

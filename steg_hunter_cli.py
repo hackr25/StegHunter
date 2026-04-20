@@ -20,6 +20,7 @@ import click
 from tqdm import tqdm
 
 from src.common.utils import collect_image_files, convert_numpy_types, save_results_json, save_results_csv
+from src.common.exceptions import InvalidImageError, ConfigError, AnalysisError
 from src.core.analyzer import SteganographyAnalyzer
 
 
@@ -47,8 +48,12 @@ def info(image_path: str):
         click.echo("-" * 50)
         for key, value in data.items():
             click.echo(f"{key}: {value}")
+    except InvalidImageError as e:
+        click.echo(f"Error: Invalid image - {e}", err=True)
+        raise SystemExit(1)
     except Exception as exc:
-        click.echo(f"Error: {exc}")
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +88,12 @@ def info(image_path: str):
 
 def analyze(target, output, format, batch, recursive, verbose, threshold, use_ml, model, ela, ghost, run_forensics):
     """Analyze TARGET (file or directory) for steganography."""
-    analyzer = SteganographyAnalyzer()
+    try:
+        analyzer = SteganographyAnalyzer()
+    except ConfigError as e:
+        click.echo(f"Error: Configuration failed - {e}", err=True)
+        raise SystemExit(1)
+    
     target_path = Path(target)
 
     if use_ml and not Path(model).exists():
@@ -93,7 +103,14 @@ def analyze(target, output, format, batch, recursive, verbose, threshold, use_ml
     results_list: list[dict] = []
 
     if target_path.is_file():
-        results_list.append(_analyze_single(target_path, analyzer, use_ml, model))
+        try:
+            results_list.append(_analyze_single(target_path, analyzer, use_ml, model))
+        except InvalidImageError as e:
+            click.echo(f"Error: Invalid image - {e}", err=True)
+            raise SystemExit(1)
+        except AnalysisError as e:
+            click.echo(f"Error: Analysis failed - {e}", err=True)
+            raise SystemExit(1)
     else:
         if not batch:
             click.echo("Use --batch (-b) to process a directory.")
@@ -105,6 +122,12 @@ def analyze(target, output, format, batch, recursive, verbose, threshold, use_ml
         for file_path in tqdm(image_files, desc="Analyzing"):
             try:
                 results_list.append(_analyze_single(file_path, analyzer, use_ml, model))
+            except InvalidImageError as e:
+                if verbose:
+                    click.echo(f"Skipped {file_path}: Invalid image - {e}")
+            except AnalysisError as e:
+                if verbose:
+                    click.echo(f"Skipped {file_path}: {e}")
             except Exception as exc:
                 if verbose:
                     click.echo(f"Error analyzing {file_path}: {exc}")
@@ -297,6 +320,74 @@ def forensics(image_path: str, ela: bool, ghost: bool, save_pdf: str):
             click.echo(f"\n  PDF saved: {pdf}")
         except Exception as exc:
             click.echo(f"  PDF generation failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# video-analyze  (Phase 4 — NEW)
+# ---------------------------------------------------------------------------
+
+@cli.command("video-analyze")
+@click.argument("video_path", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), help="Output results file (JSON).")
+@click.option("--heatmap", type=click.Path(), help="Output heatmap path (PNG).")
+@click.option("--verbose", "-v", is_flag=True, help="Print detailed frame analysis.")
+def video_analyze(video_path: str, output: str, heatmap: str, verbose: bool):
+    """Analyze VIDEO_PATH for steganography using Phase 4 forensics.
+    
+    Performs:
+    - Frame-by-frame LSB entropy analysis
+    - Temporal anomaly detection (Z-score based)
+    - Container format inspection (MP4/MKV)
+    - Optional heatmap generation
+    """
+    try:
+        analyzer = SteganographyAnalyzer()
+    except Exception as e:
+        click.echo(f"Error: Configuration failed - {e}", err=True)
+        raise SystemExit(1)
+    
+    try:
+        click.echo(f"🎬 Analyzing video: {Path(video_path).name}")
+        click.echo("-" * 60)
+        
+        results = analyzer.analyze_video(video_path)
+        
+        # Display results
+        click.echo(f"Frames analyzed    : {results['frame_count']}")
+        click.echo(f"Overall score      : {results['overall_score']:.1f}/100")
+        click.echo(f"Suspicious         : {'⚠️  YES' if results['is_suspicious'] else '✅ NO'}")
+        click.echo(f"Analysis time      : {results['analysis_time']:.2f}s")
+        
+        if verbose:
+            if "video_frame_analysis" in results["methods"]:
+                frame_result = results["methods"]["video_frame_analysis"]
+                if "anomalies" in frame_result:
+                    click.echo(f"\nFrame anomalies found: {len(frame_result['anomalies'])}")
+                    for idx, anom in frame_result['anomalies'][:5]:  # Show first 5
+                        click.echo(f"  Frame {idx}: score {anom:.2f}")
+        
+        # Generate heatmap if requested
+        if heatmap:
+            try:
+                from src.core.video_heatmap_generator import VideoHeatmapGenerator
+                if "video_frame_analysis" in results["methods"]:
+                    entropy_timeline = results["methods"]["video_frame_analysis"].get("entropy_timeline", [])
+                    anomalies = results["methods"]["video_frame_analysis"].get("anomalies", [])
+                    
+                    gen = VideoHeatmapGenerator()
+                    gen.generate(entropy_timeline, anomalies, heatmap)
+                    click.echo(f"✅ Heatmap saved to {heatmap}")
+            except Exception as e:
+                click.echo(f"Warning: Heatmap generation failed - {e}")
+        
+        # Save results if requested
+        if output:
+            save_results_json([results], output)
+            click.echo(f"✅ Results saved to {output}")
+        
+    except Exception as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------

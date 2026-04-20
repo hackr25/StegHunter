@@ -26,12 +26,9 @@ class HeatmapGenerator:
         image = Image.open(image_path)
         img_array = np.array(image)
 
-        print(f"DEBUG: Original image shape: {img_array.shape}")
-
         # Handle RGBA images - convert to RGB for LSB analysis
         if len(img_array.shape) == 3 and img_array.shape[2] == 4:
             img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
-            print(f"DEBUG: Converted RGBA to RGB: {img_array.shape}")
 
         # Extract LSB plane
         lsb_plane = img_array & 1
@@ -39,38 +36,29 @@ class HeatmapGenerator:
         # Calculate local entropy in sliding window
         heatmap = self._sliding_window_entropy(lsb_plane, window_size=16)
 
-        print(f"DEBUG: Heatmap before normalization: {heatmap.shape}, dtype: {heatmap.dtype}")
-
         # Normalize to 0-255
         heatmap = self._normalize_heatmap(heatmap)
-
-        print(f"DEBUG: Heatmap after normalization: {heatmap.shape}, dtype: {heatmap.dtype}, range: {heatmap.min()}-{heatmap.max()}")
 
         # Convert to colormap
         try:
             heatmap_uint8 = heatmap.astype(np.uint8)
             heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-            print(f"DEBUG: Colormap applied, shape: {heatmap_colored.shape}")
         except Exception as e:
-            print(f"ERROR: Could not apply colormap: {e}")
             # Fallback: convert to RGB
             heatmap_colored = cv2.cvtColor(heatmap_uint8, cv2.COLOR_GRAY2RGB)
 
         # Blend with original image
         try:
             result = self._blend_images(image, heatmap_colored, alpha=0.5)
-            print(f"DEBUG: Result shape: {np.array(result).shape}")
         except Exception as e:
-            print(f"ERROR: Blend failed: {e}")
             # Fallback: just return the heatmap
             result = Image.fromarray(heatmap_colored)
 
         if output_path:
             try:
                 result.save(output_path)
-                print(f"DEBUG: Saved heatmap to {output_path}")
             except Exception as e:
-                print(f"ERROR: Failed to save heatmap: {e}")
+                pass
 
         return heatmap_colored
 
@@ -151,7 +139,6 @@ class HeatmapGenerator:
                     count_map[i:end_i, j:end_j] += 1
                     
                 except Exception as e:
-                    print(f"ERROR: Failed to process patch at ({i}, {j}): {e}")
                     continue
 
         # Restore original n_jobs
@@ -169,21 +156,19 @@ class HeatmapGenerator:
         try:
             heatmap_colored = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
         except Exception as e:
-            print(f"ERROR: Could not apply colormap: {e}")
             heatmap_colored = cv2.cvtColor(heatmap.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
         # Blend with original image
         try:
             result = self._blend_images(image, heatmap_colored, alpha=0.6)
         except Exception as e:
-            print(f"ERROR: Blend failed: {e}")
             result = Image.fromarray(heatmap_colored)
 
         if output_path:
             try:
                 result.save(output_path)
             except Exception as e:
-                print(f"ERROR: Failed to save heatmap: {e}")
+                pass
 
         return heatmap_colored
 
@@ -239,19 +224,16 @@ class HeatmapGenerator:
 
         # Resize heatmap to match original dimensions
         if heatmap_h != orig_h or heatmap_w != orig_w:
-            print(f"DEBUG: Resizing heatmap from ({heatmap_h}, {heatmap_w}) to ({orig_h}, {orig_w})")
             heatmap_array = cv2.resize(heatmap_array, (orig_w, orig_h))
 
         # Handle RGBA images (4 channels)
         if orig_channels == 4:
-            print("DEBUG: Converting RGBA to RGB")
             # Convert RGBA to RGB (remove alpha channel)
             original_array = cv2.cvtColor(original_array, cv2.COLOR_RGBA2RGB)
             orig_channels = 3
 
         # Ensure same number of channels
         if heatmap_channels != orig_channels:
-            print(f"DEBUG: Converting from {heatmap_channels} to {orig_channels} channels")
             if orig_channels == 1:
                 # Convert to grayscale
                 if heatmap_channels == 3:
@@ -274,14 +256,9 @@ class HeatmapGenerator:
         alpha = max(0.0, min(1.0, alpha))
         beta = 1.0 - alpha
 
-        print(f"DEBUG: Blending shapes - Original: {original_array.shape}, Heatmap: {heatmap_array.shape}")
-        print(f"DEBUG: Alpha: {alpha}, Beta: {beta}")
-
         try:
             blended = cv2.addWeighted(original_array, beta, heatmap_array, alpha, 0)
-            print("DEBUG: Blend successful")
         except Exception as e:
-            print(f"ERROR: Blend failed: {e}")
             # If blending fails, just show the heatmap
             blended = heatmap_array
 
@@ -308,7 +285,6 @@ class HeatmapGenerator:
             lsb_heatmap = self.generate_lsb_heatmap(image_path)
             heatmaps['lsb'] = lsb_heatmap
         except Exception as e:
-            print(f"WARNING: LSB heatmap generation failed: {e}")
             heatmaps['lsb'] = np.zeros((img_array.shape[0], img_array.shape[1], 3), dtype=np.uint8)
 
         # Pixel variance heatmap
@@ -316,7 +292,6 @@ class HeatmapGenerator:
             variance_heatmap = self._generate_variance_heatmap(img_array_rgb)
             heatmaps['variance'] = variance_heatmap
         except Exception as e:
-            print(f"WARNING: Variance heatmap generation failed: {e}")
             heatmaps['variance'] = np.zeros((img_array.shape[0], img_array.shape[1], 3), dtype=np.uint8)
 
         # Edge detection heatmap
@@ -324,7 +299,6 @@ class HeatmapGenerator:
             edge_heatmap = self._generate_edge_heatmap(img_array_rgb)
             heatmaps['edge'] = edge_heatmap
         except Exception as e:
-            print(f"WARNING: Edge heatmap generation failed: {e}")
             heatmaps['edge'] = np.zeros((img_array.shape[0], img_array.shape[1], 3), dtype=np.uint8)
 
         # Combined heatmap
@@ -332,21 +306,19 @@ class HeatmapGenerator:
             combined_heatmap = self._combine_heatmaps(heatmaps)
             heatmaps['combined'] = combined_heatmap
         except Exception as e:
-            print(f"WARNING: Combined heatmap generation failed: {e}")
             heatmaps['combined'] = np.zeros((img_array.shape[0], img_array.shape[1], 3), dtype=np.uint8)
 
         # Blend with original image
         try:
             result = self._blend_images(image, heatmaps['combined'], alpha=0.6)
         except Exception as e:
-            print(f"WARNING: Failed to blend combined heatmap: {e}")
             result = Image.fromarray(heatmaps['combined'])
 
         if output_path:
             try:
                 result.save(output_path)
             except Exception as e:
-                print(f"WARNING: Failed to save combined heatmap: {e}")
+                pass
 
         return heatmaps
 
@@ -381,7 +353,6 @@ class HeatmapGenerator:
         try:
             variance_heatmap_colored = cv2.applyColorMap(variance_heatmap, cv2.COLORMAP_JET)
         except Exception as e:
-            print(f"ERROR: Could not apply colormap: {e}")
             variance_heatmap_colored = cv2.cvtColor(variance_heatmap, cv2.COLOR_GRAY2RGB)
 
         return variance_heatmap_colored

@@ -1,0 +1,3 @@
+"""
+StegHunter test suite.
+"""

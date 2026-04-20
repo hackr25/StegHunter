@@ -9,7 +9,7 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 warnings.filterwarnings('ignore', message='invalid value encountered in divide')
 np.seterr(divide='ignore', invalid='ignore')
 
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QFileDialog, QTabWidget,
                              QStatusBar, QMenuBar, QAction, QToolBar, QComboBox,
                              QProgressBar, QSplitter, QTextEdit, QCheckBox,

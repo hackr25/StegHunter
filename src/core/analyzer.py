@@ -7,41 +7,28 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Dict, Any, Optional
 
 from PIL import Image
 
 from .lsb_analyzer import lsb_analysis
 from .statistical_tests import chi_square_test, pixel_value_differencing
 from .reasoning_engine import ReasoningEngine
+from ..common.constants import DEFAULT_WEIGHTS, SUPPORTED_FORMATS, JPEG_FORMATS
+
+# Lazy imports for Phase 4 to avoid circular dependencies
+_video_analyzer = None
+_video_container_analyzer = None
 
 
 # Default weights — Phase 1 + Phase 2 (ELA)
-_DEFAULT_WEIGHTS: dict[str, float] = {
-    "basic":              0.05,
-    "lsb":                0.25,
-    "chi_square":         0.10,
-    "pixel_differencing": 0.05,
-    "jpeg_structure":     0.10,
-    "metadata":           0.05,
-    "format_validation":  0.10,
-    "ela":                0.20,   
-    "jpeg_ghost":         0.10,
-    "noise":              0.10,
-    "color_space":        0.10,
-    "clone_detection":    0.15,
-}
-
-SUPPORTED_FORMATS: frozenset[str] = frozenset(
-    {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
-)
-
-JPEG_FORMATS: frozenset[str] = frozenset({".jpg", ".jpeg"})
+_DEFAULT_WEIGHTS: Dict[str, float] = DEFAULT_WEIGHTS
 
 
 class SteganographyAnalyzer:
     """Orchestrate multi-method steganography analysis on image files."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         self.supported_formats = SUPPORTED_FORMATS
         self._config = config
 
@@ -49,8 +36,15 @@ class SteganographyAnalyzer:
     # Public API
     # ------------------------------------------------------------------
 
-    def basic_analysis(self, image_path) -> dict:
-        """Return basic file-level statistics for *image_path*."""
+    def basic_analysis(self, image_path: str) -> Dict[str, Any]:
+        """Return basic file-level statistics for image_path.
+        
+        Args:
+            image_path: Path to image file
+            
+        Returns:
+            Dict containing basic statistics and suspicion score
+        """
         start = time.time()
         path = Path(image_path)
         image = Image.open(path)
@@ -74,11 +68,40 @@ class SteganographyAnalyzer:
             "basic_suspicion_score": round(suspicion_score, 2),
         }
 
-    def analyze_image(self, image_path) -> dict:
-        """Run all enabled detection methods and return a combined result dict."""
+    def analyze_image(self, image_path: str) -> Dict[str, Any]:
+        """Run all enabled detection methods and return a combined result dict.
+        
+        Args:
+            image_path: Path to image file (.jpg, .png, .bmp, .tiff)
+            
+        Returns:
+            Dict containing:
+                - filename: Image filename
+                - full_path: Absolute path
+                - file_size: File size in bytes
+                - format: Image format
+                - dimensions: (width, height) tuple
+                - mode: Image mode
+                - overall_score: Combined suspicion score (0-100)
+                - is_suspicious: bool
+                - method_scores: Dict of individual method scores
+                - methods: Dict of detailed results per method
+                - analysis_time: Total analysis time in seconds
+                
+        Raises:
+            InvalidImageError: If image cannot be loaded or validated
+        """
+        from ..common.image_utils import validate_image_path
+        from ..common.exceptions import InvalidImageError
+        
+        # Validate and load image
+        try:
+            path = validate_image_path(image_path)
+            image = Image.open(path)
+        except Exception as e:
+            raise InvalidImageError(f"Failed to load image {image_path}: {e}")
+        
         start = time.time()
-        path = Path(image_path)
-        image = Image.open(path)
         ext = path.suffix.lower()
 
         results: dict = {
@@ -183,11 +206,6 @@ class SteganographyAnalyzer:
             except Exception as exc:
                 results["methods"]["clone_detection"] = {"error": str(exc), "suspicion_score": 0.0}
 
-        
-        
-        
-        
-        
         # ── Final scoring ─────────────────────────────────────────────
         results["final_suspicion_score"] = round(
             self._weighted_score(results["methods"]), 2
@@ -212,6 +230,78 @@ class SteganographyAnalyzer:
         val = self._config.get(key)
         return int(val) if val is not None else default
 
+    def analyze_video(self, video_path: str) -> Dict[str, Any]:
+        """Run Phase 4 video forensics analysis on a video file.
+        
+        Args:
+            video_path: Path to video file (.mp4, .mkv, .avi, etc.)
+            
+        Returns:
+            Dict containing:
+                - filename: Video filename
+                - full_path: Absolute path
+                - file_size: File size in bytes
+                - format: Detected video format
+                - frame_count: Number of frames analyzed
+                - overall_score: Combined suspicion score (0-100)
+                - is_suspicious: bool
+                - methods: Dict of detailed results (video_frame_analysis, video_container, heatmap)
+                - analysis_time: Total analysis time in seconds
+        """
+        from pathlib import Path
+        from ..common.exceptions import InvalidImageError
+        
+        try:
+            path = Path(video_path)
+            if not path.exists():
+                raise InvalidImageError(f"Video file not found: {video_path}")
+        except Exception as e:
+            raise InvalidImageError(f"Failed to load video {video_path}: {e}")
+        
+        start = time.time()
+        
+        results: dict = {
+            "filename": path.name,
+            "full_path": str(path.resolve()),
+            "file_size": path.stat().st_size,
+            "format": path.suffix.lower(),
+            "frame_count": 0,
+            "analysis_time": 0.0,
+            "methods": {},
+        }
+        
+        # ── Phase 4: Video Frame Analysis ─────────────────────────
+        try:
+            global _video_analyzer
+            if _video_analyzer is None:
+                from src.core.video_analyzer import VideoAnalyzer
+                _video_analyzer = VideoAnalyzer
+            video_analyzer = _video_analyzer()
+            results["methods"]["video_frame_analysis"] = video_analyzer.analyze_video(video_path)
+            results["frame_count"] = results["methods"]["video_frame_analysis"].get("frame_count", 0)
+        except Exception as exc:
+            results["methods"]["video_frame_analysis"] = {"error": str(exc), "score": 0.0}
+        
+        # ── Phase 4: Video Container Analysis ──────────────────────
+        try:
+            global _video_container_analyzer
+            if _video_container_analyzer is None:
+                from src.forensics.video_container_analyzer import VideoContainerAnalyzer
+                _video_container_analyzer = VideoContainerAnalyzer
+            container_analyzer = _video_container_analyzer()
+            results["methods"]["video_container"] = container_analyzer.analyze(video_path)
+        except Exception as exc:
+            results["methods"]["video_container"] = {"error": str(exc), "score": 0.0}
+        
+        # ── Final scoring ─────────────────────────────────────────
+        frame_score = results["methods"].get("video_frame_analysis", {}).get("score", 0.0)
+        container_score = results["methods"].get("video_container", {}).get("score", 0.0)
+        results["overall_score"] = round((frame_score * 0.6 + container_score * 0.4), 2)
+        results["is_suspicious"] = results["overall_score"] >= 50.0
+        results["analysis_time"] = round(time.time() - start, 3)
+        
+        return results
+
     def _enabled_methods(self) -> list[str]:
         """Return the list of enabled method names from config, or all defaults."""
         if self._config is not None:
@@ -224,7 +314,7 @@ class SteganographyAnalyzer:
             "ela", "jpeg_ghost", "noise", "color_space", "clone_detection", 
         ]
 
-    def _weighted_score(self, methods: dict) -> float:
+    def _weighted_score(self, methods: Dict[str, Any]) -> float:
         """Compute a config-driven weighted average suspicion score."""
         weights = _DEFAULT_WEIGHTS.copy()
         if self._config is not None:
