@@ -80,15 +80,6 @@ def cli(ctx, verbose, quiet):
     ctx.ensure_object(Config)
     ctx.obj.verbose = verbose
     ctx.obj.quiet = quiet
-    
-    if not quiet:
-        try:
-            console.print(BANNER, style="bold cyan")
-            console.print("\n[bold green]✓ StegHunter v2.0.0 ready[/bold green] | [yellow]4 ML Models[/yellow] | [cyan]5-Phase Pipeline[/cyan]\n")
-        except UnicodeEncodeError:
-            # Fallback for Windows console that doesn't support emojis
-            sys.stdout.write(BANNER)
-            sys.stdout.write("\n>>> StegHunter v2.0.0 ready | 4 ML Models | 5-Phase Pipeline\n\n")
 
 
 # ---------------------------------------------------------------------------
@@ -642,5 +633,19 @@ def predict(ctx, image_path: str, model: str):
 # Main entry point
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
+def main():
+    """Main entry point with banner display."""
+    # Always show banner on startup (except for help/version)
+    if '--help' not in sys.argv and '-h' not in sys.argv and '--version' not in sys.argv:
+        try:
+            sys.stdout.write(BANNER)
+            sys.stdout.write("\n>>> StegHunter v2.0.0 ready | 4 ML Models | 5-Phase Pipeline\n\n")
+            sys.stdout.flush()
+        except Exception:
+            pass
+    
     cli(obj=Config())
+
+
+if __name__ == "__main__":
+    main()

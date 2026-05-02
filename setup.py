@@ -41,7 +41,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "steg-hunter=steg_hunter_cli:cli",
+            "steg-hunter=steg_hunter_cli:main",
         ],
     },
     python_requires=">=3.8",

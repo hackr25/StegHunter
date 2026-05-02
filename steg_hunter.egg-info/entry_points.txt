@@ -1,0 +1,2 @@
+[console_scripts]
+steg-hunter = steg_hunter_cli:cli
