@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "steg-hunter"
+version = "2.0.0"
+description = "Advanced Steganography & Forensics Detection Suite"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "StegHunter Team", email = "info@steghunter.dev"}
+]
+keywords = ["steganography", "forensics", "detection", "security", "image", "video"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "Pillow>=9.0.0",
+    "scikit-learn>=1.3.0",
+    "xgboost>=2.0.0",
+    "opencv-python>=4.8.0",
+    "PyYAML>=6.0",
+    "piexif>=1.1.3",
+    "watchdog>=6.0.0",
+    "imageio[ffmpeg]>=2.37.0",
+    "click>=8.0.0",
+    "tqdm>=4.60.0",
+    "rich>=13.0.0",
+    "PyQt5>=5.15.0",
+    "reportlab>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+steg-hunter = "steg_hunter_cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/hackr25/StegHunter"
+Repository = "https://github.com/hackr25/StegHunter.git"
+Issues = "https://github.com/hackr25/StegHunter/issues"
