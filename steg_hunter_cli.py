@@ -304,6 +304,66 @@ def heatmap(ctx, image_path: str, output: str, method: str):
 
 
 # ---------------------------------------------------------------------------
+# generate-video-training-data command
+# ---------------------------------------------------------------------------
+
+@cli.command(name='generate-video-training-data')
+@click.option("--clean-video-dir", type=str, required=True, help="Directory with clean videos")
+@click.option("--output-dir", type=str, required=True, help="Directory to save extracted frames")
+@click.option("--stego-video-dir", type=str, default=None, help="Directory with stego videos (optional)")
+@click.option("--frames-per-video", type=int, default=15, help="Frames to extract per video")
+@click.option("--embedding-rate", type=float, default=1.0, help="LSB embedding rate (0.0-1.0)")
+@click.pass_context
+def generate_video_training_data(ctx, clean_video_dir: str, output_dir: str, 
+                                stego_video_dir: str, frames_per_video: int, embedding_rate: float):
+    """Generate training data from videos (extract frames + create stego videos)."""
+    try:
+        from src.core.video_training_generator import VideoTrainingDataGenerator
+        
+        print_info(f"Generating video training data...")
+        print_info(f"Clean videos: {clean_video_dir}")
+        if stego_video_dir:
+            print_info(f"Stego videos: {stego_video_dir}")
+        print_info(f"Output directory: {output_dir}")
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            progress.add_task("[cyan]Processing videos...", total=None)
+            
+            generator = VideoTrainingDataGenerator()
+            stats = generator.generate_mixed_dataset(
+                clean_image_dir=clean_video_dir,
+                stego_image_dir=stego_video_dir or clean_video_dir,
+                clean_video_dir=clean_video_dir,
+                stego_video_dir=stego_video_dir,
+                output_image_dir=output_dir,
+                num_video_samples=100,
+                frames_per_video=frames_per_video,
+                embedding_rate=embedding_rate
+            )
+        
+        # Display summary
+        table = Table(title="Video Training Data Generated", show_header=True, header_style="bold magenta")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Count", style="yellow")
+        
+        for key, val in stats.items():
+            table.add_row(key.replace('_', ' ').title(), str(val))
+        
+        console.print(table)
+        print_success(f"Training data saved to {output_dir}")
+    
+    except Exception as e:
+        print_error(f"Generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
 # train-model command
 # ---------------------------------------------------------------------------
 
@@ -347,15 +407,21 @@ def train_model(ctx, clean_dir: str, stego_dir: str, output: str):
 @cli.command(name='train-all-models')
 @click.option("--clean-dir", type=str, required=True, help="Directory with clean images")
 @click.option("--stego-dir", type=str, required=True, help="Directory with stego images")
+@click.option("--clean-videos", type=str, default=None, help="Directory with clean videos (optional)")
+@click.option("--stego-videos", type=str, default=None, help="Directory with stego videos (optional)")
 @click.pass_context
-def train_all_models(ctx, clean_dir: str, stego_dir: str):
-    """Train all 4 ML models (Random Forest, XGBoost, SVM, Ensemble)."""
+def train_all_models(ctx, clean_dir: str, stego_dir: str, clean_videos: str, stego_videos: str):
+    """Train all 4 ML models (Random Forest, XGBoost, SVM, Ensemble) on images + videos."""
     try:
         from src.core.ml_multi_model_manager import MultiModelMLManager
         
         print_info(f"Training all 4 ML models...")
         print_info(f"Clean images: {clean_dir}")
         print_info(f"Stego images: {stego_dir}")
+        if clean_videos:
+            print_info(f"Clean videos: {clean_videos}")
+        if stego_videos:
+            print_info(f"Stego videos: {stego_videos}")
         
         with Progress(
             SpinnerColumn(),
@@ -363,10 +429,16 @@ def train_all_models(ctx, clean_dir: str, stego_dir: str):
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            progress.add_task("[cyan]Training XGBoost, SVM, Ensemble, Random Forest...", total=None)
-            
-            manager = MultiModelMLManager()
-            metrics = manager.train_all_models(clean_dir, stego_dir)
+            if clean_videos or stego_videos:
+                progress.add_task("[cyan]Training with images + videos...", total=None)
+                manager = MultiModelMLManager()
+                metrics = manager.train_all_models_with_video(
+                    clean_dir, stego_dir, clean_videos, stego_videos
+                )
+            else:
+                progress.add_task("[cyan]Training with images only...", total=None)
+                manager = MultiModelMLManager()
+                metrics = manager.train_all_models(clean_dir, stego_dir)
         
         # Display metrics table
         table = Table(title="Model Training Metrics", show_header=True, header_style="bold magenta")
@@ -386,10 +458,20 @@ def train_all_models(ctx, clean_dir: str, stego_dir: str):
             )
         
         console.print(table)
-        print_success("All models trained and saved successfully!")
+        
+        # Show training data summary
+        training_mode = "Images + Videos" if (clean_videos or stego_videos) else "Images Only"
+        console.print(Panel(
+            f"Training Mode: [bold cyan]{training_mode}[/bold cyan]\n"
+            f"Status: [bold green]✓ All models trained and saved successfully![/bold green]",
+            title="Training Complete",
+            border_style="green"
+        ))
     
     except Exception as e:
         print_error(f"Training failed: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

@@ -6,10 +6,13 @@ Unified interface to access Random Forest, XGBoost, SVM, and Ensemble models
 import os
 import numpy as np
 from pathlib import Path
+from typing import List, Optional, Dict, Tuple
 from src.core.ml_rf_classifier import RandomForestClassifier
 from src.core.ml_xgboost_classifier import XGBoostClassifier
 from src.core.ml_svm_classifier import SVMClassifier
 from src.core.ml_ensemble_classifier import EnsembleMLClassifier
+from src.core.ml_features import MLFeatureExtractor
+from src.core.temporal_feature_extractor import TemporalFeatureExtractor
 
 
 class MultiModelMLManager:
@@ -285,3 +288,135 @@ class MultiModelMLManager:
             'f1': best_f1,
             'all_results': comparison
         }
+    
+    def train_all_models_with_video(self, clean_image_dir: str, stego_image_dir: str,
+                                    clean_video_dir: Optional[str] = None,
+                                    stego_video_dir: Optional[str] = None,
+                                    include_temporal_features: bool = True) -> Dict:
+        """
+        Train all models with combined image + video data
+        
+        Args:
+            clean_image_dir: Directory with clean images
+            stego_image_dir: Directory with stego images
+            clean_video_dir: Directory with clean videos (optional)
+            stego_video_dir: Directory with stego videos (optional)
+            include_temporal_features: Include temporal features from videos
+            
+        Returns:
+            dict: Training results for all models
+        """
+        print("\n" + "="*60)
+        print("EXTRACTING TRAINING FEATURES (IMAGES + VIDEOS)")
+        print("="*60)
+        
+        feature_extractor = MLFeatureExtractor()
+        temporal_extractor = TemporalFeatureExtractor()
+        
+        # Extract image features
+        print("\n📸 Extracting image features...")
+        X_clean_img = []
+        X_stego_img = []
+        
+        clean_images = list(Path(clean_image_dir).rglob('*'))
+        stego_images = list(Path(stego_image_dir).rglob('*'))
+        
+        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
+        
+        for img_path in clean_images:
+            if img_path.suffix.lower() in supported_formats:
+                try:
+                    features = feature_extractor.extract_features(str(img_path))
+                    if features:
+                        feat_vec = feature_extractor.features_to_vector(features)
+                        X_clean_img.append(feat_vec)
+                except Exception as e:
+                    print(f"  ⚠️ Error processing {img_path}: {e}")
+        
+        for img_path in stego_images:
+            if img_path.suffix.lower() in supported_formats:
+                try:
+                    features = feature_extractor.extract_features(str(img_path))
+                    if features:
+                        feat_vec = feature_extractor.features_to_vector(features)
+                        X_stego_img.append(feat_vec)
+                except Exception as e:
+                    print(f"  ⚠️ Error processing {img_path}: {e}")
+        
+        print(f"  ✓ Extracted {len(X_clean_img)} clean image features")
+        print(f"  ✓ Extracted {len(X_stego_img)} stego image features")
+        
+        # Extract video features if provided
+        X_clean_vid = []
+        X_stego_vid = []
+        
+        if clean_video_dir and os.path.exists(clean_video_dir):
+            print("\n🎬 Extracting video features (clean)...")
+            clean_videos = list(Path(clean_video_dir).rglob('*'))
+            supported_video_formats = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
+            
+            for vid_path in clean_videos:
+                if vid_path.suffix.lower() in supported_video_formats:
+                    try:
+                        temporal_features = temporal_extractor.extract_video_temporal_features(
+                            str(vid_path), num_batches=5
+                        )
+                        if temporal_features:
+                            # Convert features dict to vector
+                            feat_vec = np.array(list(temporal_features.values()))
+                            X_clean_vid.append(feat_vec)
+                            print(f"  ✓ {vid_path.name}")
+                    except Exception as e:
+                        print(f"  ⚠️ Error processing {vid_path}: {e}")
+        
+        if stego_video_dir and os.path.exists(stego_video_dir):
+            print("\n🎬 Extracting video features (stego)...")
+            stego_videos = list(Path(stego_video_dir).rglob('*'))
+            
+            for vid_path in stego_videos:
+                if vid_path.suffix.lower() in supported_video_formats:
+                    try:
+                        temporal_features = temporal_extractor.extract_video_temporal_features(
+                            str(vid_path), num_batches=5
+                        )
+                        if temporal_features:
+                            feat_vec = np.array(list(temporal_features.values()))
+                            X_stego_vid.append(feat_vec)
+                            print(f"  ✓ {vid_path.name}")
+                    except Exception as e:
+                        print(f"  ⚠️ Error processing {vid_path}: {e}")
+        
+        print(f"  ✓ Extracted {len(X_clean_vid)} clean video features")
+        print(f"  ✓ Extracted {len(X_stego_vid)} stego video features")
+        
+        # Combine image and video features
+        print("\n🔗 Combining image and video features...")
+        
+        # Pad video features to match image feature dimension if needed
+        if X_clean_vid and X_clean_img:
+            img_dim = len(X_clean_img[0])
+            vid_dim = len(X_clean_vid[0])
+            
+            if vid_dim < img_dim:
+                # Pad video features
+                X_clean_vid_padded = [np.pad(v, (0, img_dim - vid_dim)) for v in X_clean_vid]
+                X_stego_vid_padded = [np.pad(v, (0, img_dim - vid_dim)) for v in X_stego_vid]
+            else:
+                X_clean_vid_padded = X_clean_vid
+                X_stego_vid_padded = X_stego_vid
+            
+            X_clean = np.array(X_clean_img + X_clean_vid_padded)
+            X_stego = np.array(X_stego_img + X_stego_vid_padded)
+        else:
+            X_clean = np.array(X_clean_img)
+            X_stego = np.array(X_stego_img)
+        
+        X_train = np.vstack([X_clean, X_stego])
+        y_train = np.array([0] * len(X_clean) + [1] * len(X_stego))
+        
+        print(f"  ✓ Total training samples: {len(X_train)}")
+        print(f"  ✓ Feature dimension: {X_train.shape[1]}")
+        
+        # Train all models with combined data
+        return self.train_all_models(X_train, y_train)
+
