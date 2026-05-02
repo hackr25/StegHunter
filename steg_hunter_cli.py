@@ -429,6 +429,285 @@ def export(target, output, format, recursive):
 
 
 # ---------------------------------------------------------------------------
+# train-all-models (NEW - Multi-Model Training)
+# ---------------------------------------------------------------------------
+
+@cli.command("train-all-models")
+@click.option("--clean-dir", type=click.Path(exists=True), required=True, help="Directory of clean images.")
+@click.option("--stego-dir", type=click.Path(exists=True), required=True, help="Directory of stego images.")
+@click.option("--test-size", type=float, default=0.2, show_default=True, help="Validation split ratio.")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed training metrics.")
+def train_all_models(clean_dir, stego_dir, test_size, verbose):
+    """Train XGBoost, SVM, and Ensemble ML models simultaneously."""
+    from src.core.ml_multi_model_manager import MultiModelMLManager
+    from src.core.ml_features import MLFeatureExtractor
+    from sklearn.model_selection import train_test_split
+    import numpy as np
+    
+    _SUPPORTED = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
+    clean_images = [str(p) for p in Path(clean_dir).glob("*.*") if p.suffix.lower() in _SUPPORTED]
+    stego_images = [str(p) for p in Path(stego_dir).glob("*.*") if p.suffix.lower() in _SUPPORTED]
+    
+    click.echo(f"Clean images : {len(clean_images)}")
+    click.echo(f"Stego images : {len(stego_images)}")
+    
+    if not clean_images or not stego_images:
+        click.echo("Error: need at least one image in each directory.")
+        return
+    
+    try:
+        click.echo("\n" + "="*60)
+        click.echo("FEATURE EXTRACTION")
+        click.echo("="*60 + "\n")
+        
+        # Extract features
+        extractor = MLFeatureExtractor()
+        X_clean = []
+        X_stego = []
+        
+        for img_path in tqdm(clean_images, desc="Extracting clean features"):
+            try:
+                features = extractor.extract_features(img_path)
+                X_clean.append(features)
+            except Exception as e:
+                if verbose:
+                    click.echo(f"  Skipped {img_path}: {e}")
+        
+        for img_path in tqdm(stego_images, desc="Extracting stego features"):
+            try:
+                features = extractor.extract_features(img_path)
+                X_stego.append(features)
+            except Exception as e:
+                if verbose:
+                    click.echo(f"  Skipped {img_path}: {e}")
+        
+        if len(X_clean) < 2 or len(X_stego) < 2:
+            click.echo("Error: Not enough valid images to train models.")
+            return
+        
+        X = np.vstack([X_clean, X_stego])
+        y = np.hstack([np.zeros(len(X_clean)), np.ones(len(X_stego))])
+        
+        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=test_size, random_state=42)
+        
+        click.echo(f"\nTraining set: {len(X_train)} samples")
+        click.echo(f"Validation set: {len(X_val)} samples")
+        
+        # Train all models
+        manager = MultiModelMLManager(model_type='ensemble')
+        results = manager.train_all_models(X_train, y_train, X_val, y_val)
+        
+        # Display results
+        click.echo("\n" + "="*60)
+        click.echo("TRAINING COMPLETE")
+        click.echo("="*60 + "\n")
+        
+        for model_name, metrics in results.items():
+            click.echo(f"📊 {model_name.upper()}")
+            click.echo(f"   Accuracy   : {metrics.get('accuracy', 'N/A'):.4f}")
+            click.echo(f"   Precision  : {metrics.get('precision', 'N/A'):.4f}")
+            click.echo(f"   Recall     : {metrics.get('recall', 'N/A'):.4f}")
+            click.echo(f"   F1-Score   : {metrics.get('f1', 'N/A'):.4f}")
+            if 'val_f1' in metrics:
+                click.echo(f"   Val F1     : {metrics['val_f1']:.4f}")
+            click.echo()
+        
+        click.echo("✅ All models trained and saved!")
+        click.echo("   • models/steg_model.pkl (Random Forest)")
+        click.echo("   • models/steg_model_xgboost.pkl (XGBoost)")
+        click.echo("   • models/steg_model_svm.pkl (SVM)")
+        click.echo("   • models/steg_model_ensemble.pkl (Ensemble)")
+        
+    except Exception as exc:
+        click.echo(f"Error during training: {exc}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+
+
+# ---------------------------------------------------------------------------
+# analyze-all-models (NEW - Multi-Model Analysis)
+# ---------------------------------------------------------------------------
+
+@cli.command("analyze-all-models")
+@click.argument("image_path", type=click.Path(exists=True))
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed predictions.")
+def analyze_all_models(image_path: str, verbose: bool):
+    """Analyze IMAGE_PATH with all ML models (RF, XGB, SVM, Ensemble)."""
+    from src.core.ml_multi_model_manager import MultiModelMLManager
+    from src.core.ml_features import MLFeatureExtractor
+    import numpy as np
+    
+    try:
+        click.echo(f"\n📊 Multi-Model Analysis: {Path(image_path).name}")
+        click.echo("=" * 70)
+        
+        # Extract features
+        extractor = MLFeatureExtractor()
+        features = extractor.extract_features(image_path)
+        X = np.array([features])
+        
+        # Get predictions from all models
+        manager = MultiModelMLManager(model_type='ensemble')
+        results = manager.predict_all_models(X)
+        
+        # Display results
+        click.echo()
+        table_data = []
+        
+        for model_name in ['rf', 'xgb', 'svm', 'ensemble']:
+            if model_name in results:
+                if 'error' in results[model_name]:
+                    table_data.append([
+                        model_name.upper(),
+                        "ERROR",
+                        "N/A",
+                        results[model_name]['error']
+                    ])
+                else:
+                    pred = results[model_name]['predictions'][0]
+                    conf = results[model_name]['confidences'][0]
+                    status = "STEGO" if pred == 1 else "CLEAN"
+                    table_data.append([
+                        model_name.upper(),
+                        status,
+                        f"{conf:.4f}",
+                        ""
+                    ])
+        
+        from tabulate import tabulate
+        click.echo(tabulate(table_data, 
+                           headers=["Model", "Prediction", "Confidence", "Notes"],
+                           tablefmt="grid"))
+        
+        # Consensus prediction
+        stego_votes = sum(1 for m in ['rf', 'xgb', 'svm', 'ensemble'] 
+                         if m in results and 'error' not in results[m] 
+                         and results[m]['predictions'][0] == 1)
+        
+        click.echo()
+        click.echo(f"Consensus: {stego_votes}/4 models detected steganography")
+        
+        if stego_votes >= 3:
+            click.echo("🚨 HIGH CONFIDENCE: Image is likely steganographic")
+        elif stego_votes >= 2:
+            click.echo("⚠️  MEDIUM CONFIDENCE: Image may contain hidden data")
+        else:
+            click.echo("✅ LOW CONFIDENCE: Image appears clean")
+        
+        click.echo("=" * 70 + "\n")
+        
+    except Exception as exc:
+        click.echo(f"Error: {exc}")
+        import traceback
+        traceback.print_exc()
+
+
+# ---------------------------------------------------------------------------
+# compare-models (NEW - Model Comparison)
+# ---------------------------------------------------------------------------
+
+@cli.command("compare-models")
+@click.argument("target", type=click.Path(exists=True))
+@click.option("--batch", "-b", is_flag=True, help="Batch-process a directory.")
+@click.option("--recursive", "-r", is_flag=True, help="Recurse into sub-directories.")
+@click.option("--output", "-o", type=click.Path(), help="Output comparison results (JSON).")
+def compare_models(target: str, batch: bool, recursive: bool, output: str):
+    """Compare model performance on TARGET image(s)."""
+    from src.core.ml_multi_model_manager import MultiModelMLManager
+    from src.core.ml_features import MLFeatureExtractor
+    import numpy as np
+    
+    target_path = Path(target)
+    
+    click.echo("\n🔍 Model Comparison Analysis")
+    click.echo("=" * 70)
+    
+    try:
+        manager = MultiModelMLManager(model_type='ensemble')
+        extractor = MLFeatureExtractor()
+        
+        if target_path.is_file():
+            # Single image
+            features = extractor.extract_features(str(target_path))
+            X = np.array([features])
+            
+            results = manager.predict_all_models(X)
+            
+            click.echo(f"\nImage: {target_path.name}")
+            click.echo("-" * 70)
+            
+            for model_name in ['rf', 'xgb', 'svm', 'ensemble']:
+                if model_name in results and 'error' not in results[model_name]:
+                    conf = results[model_name]['confidences'][0]
+                    pred = "STEGO" if results[model_name]['predictions'][0] == 1 else "CLEAN"
+                    click.echo(f"  {model_name.upper():10s} : {pred:5s} (confidence: {conf:.4f})")
+        
+        elif batch:
+            # Batch processing
+            image_files = collect_image_files(target_path, recursive)
+            if not image_files:
+                click.echo("No image files found.")
+                return
+            
+            all_results = []
+            
+            for img_path in tqdm(image_files, desc="Comparing models"):
+                try:
+                    features = extractor.extract_features(str(img_path))
+                    X = np.array([features])
+                    predictions = manager.predict_all_models(X)
+                    
+                    result_entry = {
+                        'filename': Path(img_path).name,
+                        'models': {}
+                    }
+                    
+                    for model_name in ['rf', 'xgb', 'svm', 'ensemble']:
+                        if model_name in predictions and 'error' not in predictions[model_name]:
+                            result_entry['models'][model_name] = {
+                                'prediction': int(predictions[model_name]['predictions'][0]),
+                                'confidence': float(predictions[model_name]['confidences'][0])
+                            }
+                    
+                    all_results.append(result_entry)
+                except Exception as e:
+                    if len(image_files) < 20:
+                        click.echo(f"  Skipped {img_path}: {e}")
+            
+            click.echo(f"\n✅ Compared {len(all_results)} images")
+            
+            # Summary statistics
+            stego_by_model = {'rf': 0, 'xgb': 0, 'svm': 0, 'ensemble': 0}
+            for result in all_results:
+                for model_name in stego_by_model:
+                    if model_name in result['models'] and result['models'][model_name]['prediction'] == 1:
+                        stego_by_model[model_name] += 1
+            
+            click.echo("\nDetection Summary:")
+            for model_name, count in stego_by_model.items():
+                pct = (count / len(all_results) * 100) if len(all_results) > 0 else 0
+                click.echo(f"  {model_name.upper():10s} : {count:3d}/{len(all_results)} ({pct:.1f}%)")
+            
+            # Save results if requested
+            if output:
+                import json
+                with open(output, 'w') as f:
+                    json.dump(all_results, f, indent=2)
+                click.echo(f"\n✅ Results saved to {output}")
+        
+        else:
+            click.echo("Use --batch (-b) to process a directory.")
+        
+        click.echo("=" * 70 + "\n")
+        
+    except Exception as exc:
+        click.echo(f"Error: {exc}")
+        import traceback
+        traceback.print_exc()
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

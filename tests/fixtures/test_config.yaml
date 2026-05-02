@@ -1,0 +1,19 @@
+suspicion_threshold: 50.0
+weights:
+  basic: 0.05
+  lsb: 0.25
+  chi_square: 0.10
+  pixel_differencing: 0.05
+  ela: 0.20
+  jpeg_ghost: 0.10
+  clone_detection: 0.15
+  noise: 0.05
+  color_space: 0.05
+enabled_methods:
+  - basic
+  - lsb
+  - chi_square
+  - pixel_differencing
+performance:
+  max_workers: 2
+  chunk_size: 10
