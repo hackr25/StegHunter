@@ -1122,42 +1122,53 @@ class MainWindow(QMainWindow):
         try:
             from src.core.heatmap_generator import HeatmapGenerator
             from src.core.ml_classifier import MLSteganalysisClassifier
+            from PIL import Image
+            from PyQt5.QtGui import QImage
             
             method = self.heatmap_method_combo.currentText().lower()
             generator = HeatmapGenerator()
             
-            # Generate unique output filename
-            import time
-            timestamp = int(time.time())
-            output_path = f"heatmap_{method}_{timestamp}.png"
-            
             self.status_bar.showMessage(f"Generating {method} heatmap...")
             
             if method == 'lsb':
-                heatmap = generator.generate_lsb_heatmap(self.current_image_path, output_path)
+                heatmap = generator.generate_lsb_heatmap(self.current_image_path)
             elif method == 'comprehensive':
-                heatmaps = generator.generate_comprehensive_heatmap(self.current_image_path, output_path)
+                heatmaps = generator.generate_comprehensive_heatmap(self.current_image_path)
                 self.status_bar.showMessage(f"Generated {len(heatmaps)} heatmap(s)")
+                heatmap = heatmaps[0] if heatmaps else None
             elif method == 'ml':
                 model_path = 'models/steg_model.pkl'
                 if not Path(model_path).exists():
                     self.show_error("No trained ML model found. Train a model first with 'train-model' command")
                     return
                 classifier = MLSteganalysisClassifier(model_path)
-                heatmap = generator.generate_ml_heatmap(self.current_image_path, classifier, output_path)
+                heatmap = generator.generate_ml_heatmap(self.current_image_path, classifier)
             
-            # Verify the file was created
-            if Path(output_path).exists():
-                file_size = Path(output_path).stat().st_size
-                self.status_bar.showMessage(f"Heatmap saved: {output_path} ({file_size:,} bytes)")
+            # Convert numpy array to QPixmap without saving file
+            if heatmap is not None:
+                heatmap_uint8 = (heatmap * 255).astype(np.uint8) if heatmap.max() <= 1 else heatmap.astype(np.uint8)
                 
-                # Display heatmap
-                pixmap = QPixmap(output_path)
+                # Handle different array shapes
+                if len(heatmap_uint8.shape) == 3 and heatmap_uint8.shape[2] == 3:
+                    # RGB image
+                    h, w, ch = heatmap_uint8.shape
+                    bytes_per_line = 3 * w
+                    qt_image = QImage(heatmap_uint8.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                elif len(heatmap_uint8.shape) == 2:
+                    # Grayscale
+                    h, w = heatmap_uint8.shape
+                    bytes_per_line = w
+                    qt_image = QImage(heatmap_uint8.data, w, h, bytes_per_line, QImage.Format_Grayscale8)
+                else:
+                    return
+                
+                pixmap = QPixmap.fromImage(qt_image)
                 self.heatmap_label.setPixmap(pixmap.scaled(
                     self.heatmap_label.size(),
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 ))
+                self.status_bar.showMessage(f"Heatmap generated successfully (no file saved)")
                 
                 # Switch to heatmap tab
                 self.results_tab.setCurrentIndex(2)

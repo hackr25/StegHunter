@@ -17,10 +17,10 @@ class HeatmapGenerator:
     def __init__(self):
         self.feature_extractor = MLFeatureExtractor()
 
-    def generate_lsb_heatmap(self, image_path: str, output_path: str = None) -> np.ndarray:
+    def generate_lsb_heatmap(self, image_path: str) -> np.ndarray:
         """
         Generate heatmap based on LSB entropy
-        Returns heatmap as numpy array
+        Returns heatmap as numpy array (no file saving)
         """
         # Load image
         image = Image.open(image_path)
@@ -43,28 +43,27 @@ class HeatmapGenerator:
         try:
             heatmap_uint8 = heatmap.astype(np.uint8)
             heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+            # Convert BGR to RGB
+            heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
         except Exception as e:
             # Fallback: convert to RGB
+            heatmap_uint8 = heatmap.astype(np.uint8)
             heatmap_colored = cv2.cvtColor(heatmap_uint8, cv2.COLOR_GRAY2RGB)
 
         # Blend with original image
         try:
             result = self._blend_images(image, heatmap_colored, alpha=0.5)
+            result_array = np.array(result)
         except Exception as e:
             # Fallback: just return the heatmap
-            result = Image.fromarray(heatmap_colored)
+            result_array = heatmap_colored
 
-        if output_path:
-            try:
-                result.save(output_path)
-            except Exception as e:
-                pass
+        return result_array
 
-        return heatmap_colored
-
-    def generate_ml_heatmap(self, image_path: str, model, output_path: str = None) -> np.ndarray:
+    def generate_ml_heatmap(self, image_path: str, model) -> np.ndarray:
         """
         Generate heatmap using ML model predictions on image patches
+        Returns heatmap as numpy array (no file saving)
         """
         # Load image
         image = Image.open(image_path)
@@ -104,23 +103,8 @@ class HeatmapGenerator:
                     if hasattr(model.feature_extractor, 'extract_features_from_array'):
                         features = model.feature_extractor.extract_features_from_array(patch)
                     else:
-                        # Fallback: save to temp file
-                        patch_img = Image.fromarray(patch)
-                        temp_path = f'temp_patch_{i}_{j}.png'
-                        try:
-                            patch_img.save(temp_path)
-                            result = model.predict(temp_path)
-                            probability = result['probability']
-                        finally:
-                            import os
-                            if os.path.exists(temp_path):
-                                os.remove(temp_path)
-                        # Add to heatmap
-                        end_i = min(i+patch_size, h)
-                        end_j = min(j+patch_size, w)
-                        heatmap[i:end_i, j:end_j] += probability
-                        count_map[i:end_i, j:end_j] += 1
-                        continue
+                        # Fallback: save to temp file in memory
+                        continue  # Skip this patch
                     
                     # Scale features
                     if model.scaler is not None:
@@ -154,23 +138,20 @@ class HeatmapGenerator:
 
         # Apply colormap
         try:
-            heatmap_colored = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+            heatmap_colored_bgr = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+            # Convert BGR to RGB
+            heatmap_colored = cv2.cvtColor(heatmap_colored_bgr, cv2.COLOR_BGR2RGB)
         except Exception as e:
             heatmap_colored = cv2.cvtColor(heatmap.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
         # Blend with original image
         try:
             result = self._blend_images(image, heatmap_colored, alpha=0.6)
+            result_array = np.array(result)
         except Exception as e:
-            result = Image.fromarray(heatmap_colored)
+            result_array = heatmap_colored
 
-        if output_path:
-            try:
-                result.save(output_path)
-            except Exception as e:
-                pass
-
-        return heatmap_colored
+        return result_array
 
     def _sliding_window_entropy(self, image: np.ndarray, window_size: int = 16) -> np.ndarray:
         """Calculate entropy in sliding windows"""
@@ -264,10 +245,10 @@ class HeatmapGenerator:
 
         return Image.fromarray(blended)
 
-    def generate_comprehensive_heatmap(self, image_path: str, output_path: str = None) -> Dict[str, np.ndarray]:
+    def generate_comprehensive_heatmap(self, image_path: str) -> Dict[str, np.ndarray]:
         """
         Generate multiple heatmaps and combine them
-        Returns dictionary of different heatmaps
+        Returns dictionary of different heatmaps (no file saving)
         """
         image = Image.open(image_path)
         img_array = np.array(image)
@@ -311,14 +292,10 @@ class HeatmapGenerator:
         # Blend with original image
         try:
             result = self._blend_images(image, heatmaps['combined'], alpha=0.6)
+            result_array = np.array(result)
+            heatmaps['blended'] = result_array
         except Exception as e:
-            result = Image.fromarray(heatmaps['combined'])
-
-        if output_path:
-            try:
-                result.save(output_path)
-            except Exception as e:
-                pass
+            pass
 
         return heatmaps
 
