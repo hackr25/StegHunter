@@ -5,7 +5,7 @@ Common image utility functions for StegHunter
 from PIL import Image
 from pathlib import Path
 from typing import Optional, Dict, Any
-from .constants import SUPPORTED_FORMATS
+from .constants import SUPPORTED_FORMATS, VIDEO_FORMATS
 from .exceptions import InvalidImageError
 
 
@@ -33,6 +33,35 @@ def validate_image_path(image_path: str) -> Path:
         raise InvalidImageError(
             f"Unsupported image format: {path.suffix}. "
             f"Supported: {', '.join(sorted(SUPPORTED_FORMATS))}"
+        )
+    
+    return path
+
+
+def validate_video_path(video_path: str) -> Path:
+    """Validate that the path exists and is a supported video format.
+    
+    Args:
+        video_path: Path to video file
+        
+    Returns:
+        Validated Path object
+        
+    Raises:
+        InvalidImageError: If file doesn't exist or format not supported
+    """
+    path = Path(video_path)
+    
+    if not path.exists():
+        raise InvalidImageError(f"Video file not found: {video_path}")
+    
+    if not path.is_file():
+        raise InvalidImageError(f"Path is not a file: {video_path}")
+    
+    if path.suffix.lower() not in VIDEO_FORMATS:
+        raise InvalidImageError(
+            f"Unsupported video format: {path.suffix}. "
+            f"Supported: {', '.join(sorted(VIDEO_FORMATS))}"
         )
     
     return path

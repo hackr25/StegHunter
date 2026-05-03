@@ -26,7 +26,7 @@ from .jpeg_ghost_analyzer import JPEGGhostAnalyzer
 from .noise_analyzer import NoiseAnalyzer
 from .color_space_analyzer import ColorSpaceAnalyzer
 from .statistical_tests import chi_square_test, pixel_value_differencing
-from ..common.image_utils import validate_image_path
+from ..common.image_utils import validate_video_path
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class VideoAnalyzer:
             Dict containing per-frame technique scores, temporal analysis, and overall score
         """
         start = time.time()
-        path = validate_image_path(video_path)
+        path = validate_video_path(video_path)
         
         # Extract frames
         frames = self._extract_frames(str(path))
