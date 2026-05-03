@@ -18,46 +18,105 @@ class ModelTrainingWorker(QThread):
     finished_signal = pyqtSignal(dict)
     error_signal = pyqtSignal(str)
     
-    def __init__(self, clean_dir, stego_dir, output_path, test_size, verbose):
+    def __init__(self, clean_dir, stego_dir, output_path, test_size, verbose,
+                 clean_video_dir=None, stego_video_dir=None, use_video_training=False):
         super().__init__()
         self.clean_dir = clean_dir
         self.stego_dir = stego_dir
         self.output_path = output_path
         self.test_size = test_size
         self.verbose = verbose
+        self.clean_video_dir = clean_video_dir
+        self.stego_video_dir = stego_video_dir
+        self.use_video_training = use_video_training
     
     def run(self):
         try:
-            self.log_signal.emit("Starting model training...")
-            self.progress_signal.emit(10)
-            
-            # Collect training images
-            self.log_signal.emit("Collecting training images...")
-            from src.common.utils import collect_image_files
-            clean_images = [str(p) for p in collect_image_files(self.clean_dir)]
-            stego_images = [str(p) for p in collect_image_files(self.stego_dir)]
-            
-            self.log_signal.emit(f"Found {len(clean_images)} clean images")
-            self.log_signal.emit(f"Found {len(stego_images)} stego images")
-            self.progress_signal.emit(30)
-            
-            if len(clean_images) == 0 or len(stego_images) == 0:
-                self.error_signal.emit("Need at least one clean and one stego image")
-                return
-            
-            # Train model
-            self.log_signal.emit("Training Random Forest classifier...")
-            classifier = MLSteganalysisClassifier()
-            metrics = classifier.train_model(clean_images, stego_images, self.output_path, self.test_size)
-            
-            self.progress_signal.emit(90)
-            self.log_signal.emit("Model training completed!")
-            
-            # Emit results
-            self.finished_signal.emit(metrics)
+            if self.use_video_training and (self.clean_video_dir or self.stego_video_dir):
+                self.run_video_training()
+            else:
+                self.run_image_training()
             
         except Exception as e:
             self.error_signal.emit(str(e))
+    
+    def run_image_training(self):
+        """Train on images only"""
+        self.log_signal.emit("Starting model training (Images Only)...")
+        self.progress_signal.emit(10)
+        
+        # Collect training images
+        self.log_signal.emit("Collecting training images...")
+        from src.common.utils import collect_image_files
+        clean_images = [str(p) for p in collect_image_files(self.clean_dir)]
+        stego_images = [str(p) for p in collect_image_files(self.stego_dir)]
+        
+        self.log_signal.emit(f"Found {len(clean_images)} clean images")
+        self.log_signal.emit(f"Found {len(stego_images)} stego images")
+        self.progress_signal.emit(30)
+        
+        if len(clean_images) == 0 or len(stego_images) == 0:
+            self.error_signal.emit("Need at least one clean and one stego image")
+            return
+        
+        # Train model
+        self.log_signal.emit("Training all 4 ML models...")
+        from src.core.ml_multi_model_manager import MultiModelMLManager
+        manager = MultiModelMLManager()
+        
+        self.progress_signal.emit(50)
+        metrics = manager.train_all_models(self.clean_dir, self.stego_dir)
+        
+        self.progress_signal.emit(90)
+        self.log_signal.emit("Model training completed!")
+        
+        # Emit results
+        self.finished_signal.emit(metrics)
+    
+    def run_video_training(self):
+        """Train on images + videos"""
+        self.log_signal.emit("Starting model training (Images + Videos)...")
+        self.progress_signal.emit(10)
+        
+        # Collect training images
+        self.log_signal.emit("Collecting training images...")
+        from src.common.utils import collect_image_files
+        clean_images = [str(p) for p in collect_image_files(self.clean_dir)]
+        stego_images = [str(p) for p in collect_image_files(self.stego_dir)]
+        
+        self.log_signal.emit(f"Found {len(clean_images)} clean images")
+        self.log_signal.emit(f"Found {len(stego_images)} stego images")
+        
+        # Collect videos if provided
+        if self.clean_video_dir:
+            self.log_signal.emit(f"Videos directory (clean): {self.clean_video_dir}")
+        if self.stego_video_dir:
+            self.log_signal.emit(f"Videos directory (stego): {self.stego_video_dir}")
+        
+        self.progress_signal.emit(30)
+        
+        if len(clean_images) == 0 or len(stego_images) == 0:
+            self.error_signal.emit("Need at least one clean and one stego image")
+            return
+        
+        # Train models with video support
+        self.log_signal.emit("Training all 4 ML models (with video features)...")
+        from src.core.ml_multi_model_manager import MultiModelMLManager
+        manager = MultiModelMLManager()
+        
+        self.progress_signal.emit(50)
+        metrics = manager.train_all_models_with_video(
+            self.clean_dir,
+            self.stego_dir,
+            self.clean_video_dir,
+            self.stego_video_dir
+        )
+        
+        self.progress_signal.emit(90)
+        self.log_signal.emit("Model training with video features completed!")
+        
+        # Emit results
+        self.finished_signal.emit(metrics)
 
 class TrainModelDialog(QDialog):
     """Dialog for training ML models"""
@@ -99,6 +158,47 @@ class TrainModelDialog(QDialog):
         stego_layout.addWidget(self.stego_path)
         stego_layout.addWidget(stego_browse)
         data_layout.addLayout(stego_layout)
+        
+        # Video training option
+        self.use_video_check = QCheckBox("Include Video Training Data")
+        self.use_video_check.stateChanged.connect(self.toggle_video_fields)
+        data_layout.addWidget(self.use_video_check)
+        
+        # Clean videos (hidden by default)
+        clean_video_layout = QHBoxLayout()
+        self.clean_video_label = QLabel("Clean Videos Directory:")
+        self.clean_video_path = QLineEdit()
+        self.clean_video_path.setPlaceholderText("Select directory with clean videos (MP4, AVI, MOV, etc.)")
+        self.clean_video_path.setEnabled(False)
+        clean_video_browse = QPushButton("Browse...")
+        clean_video_browse.clicked.connect(self.select_clean_video_directory)
+        clean_video_browse.setEnabled(False)
+        self.clean_video_browse = clean_video_browse
+        clean_video_layout.addWidget(self.clean_video_label)
+        clean_video_layout.addWidget(self.clean_video_path)
+        clean_video_layout.addWidget(clean_video_browse)
+        self.clean_video_widget = QWidget()
+        self.clean_video_widget.setLayout(clean_video_layout)
+        self.clean_video_widget.setVisible(False)
+        data_layout.addWidget(self.clean_video_widget)
+        
+        # Stego videos (hidden by default)
+        stego_video_layout = QHBoxLayout()
+        self.stego_video_label = QLabel("Stego Videos Directory:")
+        self.stego_video_path = QLineEdit()
+        self.stego_video_path.setPlaceholderText("Select directory with stego videos (optional)")
+        self.stego_video_path.setEnabled(False)
+        stego_video_browse = QPushButton("Browse...")
+        stego_video_browse.clicked.connect(self.select_stego_video_directory)
+        stego_video_browse.setEnabled(False)
+        self.stego_video_browse = stego_video_browse
+        stego_video_layout.addWidget(self.stego_video_label)
+        stego_video_layout.addWidget(self.stego_video_path)
+        stego_video_layout.addWidget(stego_video_browse)
+        self.stego_video_widget = QWidget()
+        self.stego_video_widget.setLayout(stego_video_layout)
+        self.stego_video_widget.setVisible(False)
+        data_layout.addWidget(self.stego_video_widget)
         
         # Output model
         output_layout = QHBoxLayout()
@@ -202,6 +302,18 @@ class TrainModelDialog(QDialog):
         if directory:
             self.stego_path.setText(directory)
     
+    def select_clean_video_directory(self):
+        """Select directory with clean videos"""
+        directory = QFileDialog.getExistingDirectory(self, "Select Clean Videos Directory")
+        if directory:
+            self.clean_video_path.setText(directory)
+    
+    def select_stego_video_directory(self):
+        """Select directory with stego videos"""
+        directory = QFileDialog.getExistingDirectory(self, "Select Stego Videos Directory")
+        if directory:
+            self.stego_video_path.setText(directory)
+    
     def select_output_file(self):
         """Select output model file"""
         file_path, _ = QFileDialog.getSaveFileName(
@@ -214,11 +326,24 @@ class TrainModelDialog(QDialog):
         if file_path:
             self.output_path.setText(file_path)
     
+    def toggle_video_fields(self):
+        """Toggle video input fields visibility"""
+        is_checked = self.use_video_check.isChecked()
+        self.clean_video_widget.setVisible(is_checked)
+        self.stego_video_widget.setVisible(is_checked)
+        self.clean_video_path.setEnabled(is_checked)
+        self.clean_video_browse.setEnabled(is_checked)
+        self.stego_video_path.setEnabled(is_checked)
+        self.stego_video_browse.setEnabled(is_checked)
+    
     def start_training(self):
         """Start model training"""
         clean_dir = self.clean_path.text()
         stego_dir = self.stego_path.text()
         output_path = self.output_path.text()
+        use_video = self.use_video_check.isChecked()
+        clean_video_dir = self.clean_video_path.text() if use_video else None
+        stego_video_dir = self.stego_video_path.text() if use_video else None
         
         if not clean_dir or not stego_dir:
             QMessageBox.warning(self, "Warning", "Please select both clean and stego directories")
@@ -237,6 +362,14 @@ class TrainModelDialog(QDialog):
             QMessageBox.warning(self, "Warning", "Stego directory does not exist")
             return
         
+        if use_video and clean_video_dir and not Path(clean_video_dir).exists():
+            QMessageBox.warning(self, "Warning", "Clean video directory does not exist")
+            return
+        
+        if use_video and stego_video_dir and not Path(stego_video_dir).exists():
+            QMessageBox.warning(self, "Warning", "Stego video directory does not exist")
+            return
+        
         # Disable UI during training
         self.train_btn.setEnabled(False)
         self.cancel_btn.setEnabled(False)
@@ -251,7 +384,10 @@ class TrainModelDialog(QDialog):
             stego_dir=stego_dir,
             output_path=output_path,
             test_size=self.test_size_spin.value(),
-            verbose=self.verbose_check.isChecked()
+            verbose=self.verbose_check.isChecked(),
+            clean_video_dir=clean_video_dir,
+            stego_video_dir=stego_video_dir,
+            use_video_training=use_video
         )
         
         # Connect signals
@@ -278,8 +414,10 @@ class TrainModelDialog(QDialog):
     def training_finished(self, metrics):
         """Handle training completion"""
         self.progress_bar.setValue(100)
-        self.status_label.setText("Training completed successfully!")
-        self.add_log("✓ Model training completed successfully")
+        
+        training_mode = "Images + Videos" if self.use_video_check.isChecked() else "Images Only"
+        self.status_label.setText(f"Training completed successfully! (Mode: {training_mode})")
+        self.add_log(f"✓ Model training completed successfully ({training_mode})")
         
         # Display results
         self.display_results(metrics)
@@ -289,7 +427,7 @@ class TrainModelDialog(QDialog):
         self.cancel_btn.setEnabled(True)
         
         # Show success message
-        QMessageBox.information(self, "Success", f"Model trained and saved to:\n{self.output_path.text()}")
+        QMessageBox.information(self, "Success", f"Model trained and saved to:\n{self.output_path.text()}\n\nTraining Mode: {training_mode}")
     
     def training_error(self, error_message):
         """Handle training errors"""
