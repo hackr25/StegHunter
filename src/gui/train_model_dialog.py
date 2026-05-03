@@ -4,7 +4,7 @@ Model Training Dialog for StegHunter
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
                              QProgressBar, QTextEdit, QFileDialog, QCheckBox, QComboBox,
                              QGroupBox, QLineEdit, QDoubleSpinBox, QSpinBox, QMessageBox,
-                             QListWidget, QTableWidget, QTableWidgetItem)
+                             QListWidget, QTableWidget, QTableWidgetItem, QWidget)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 from pathlib import Path

@@ -1,725 +1,486 @@
 """
-PDF Report Generation for StegHunter with Charts
+Professional PDF Report Generator for StegHunter Analysis Results
+Generates attractive, comprehensive PDF reports using WeasyPrint
 """
-import os
+
+import base64
 from pathlib import Path
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-import matplotlib.pyplot as plt
-import numpy as np
 from datetime import datetime
-from typing import Dict, List, Any
-import tempfile
-import atexit
+
 
 class PDFReporter:
-    """Generate professional PDF reports for steganography analysis with charts"""
+    """Generates professional PDF reports for steganography analysis"""
     
     def __init__(self):
-        self.styles = getSampleStyleSheet()
-        self.custom_style = ParagraphStyle(
-            'Custom',
-            parent=self.styles['Normal'],
-            fontName='Helvetica',
-            fontSize=10,
-            spaceAfter=12,
-        )
-        self.temp_files = []  # Track temporary files for cleanup
-        # Register cleanup function
-        atexit.register(self.cleanup_temp_files)
+        """Initialize PDF reporter"""
+        try:
+            from weasyprint import HTML, CSS
+            self.HTML = HTML
+            self.CSS = CSS
+        except ImportError:
+            raise ImportError("WeasyPrint not installed. Install with: pip install weasyprint")
     
-    def cleanup_temp_files(self):
-        """Clean up any remaining temporary files"""
-        for temp_file in self.temp_files:
-            try:
-                if os.path.exists(temp_file):
-                    os.unlink(temp_file)
-            except Exception as e:
-                print(f"Error cleaning up temp file {temp_file}: {e}")
-    
-    def create_single_image_report(self, image_path: str, analysis_results: Dict, 
-                                  heatmap_path: str = None, output_path: str = None) -> str:
+    def generate_report(self, analysis_results: dict, image_path: str, output_pdf_path: str) -> str:
         """
-        Create a detailed PDF report for a single image analysis with charts
+        Generate comprehensive PDF report from analysis results
+        
+        Args:
+            analysis_results: Complete analysis results from SteganographyAnalyzer
+            image_path: Path to the analyzed image
+            output_pdf_path: Path where PDF should be saved
+            
+        Returns:
+            Path to generated PDF
         """
-        if output_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = f"report_{Path(image_path).stem}_{timestamp}.pdf"
+        # Generate HTML content
+        html_content = self._generate_html(analysis_results, image_path)
         
-        doc = SimpleDocTemplate(output_path, pagesize=A4)
-        story = []
-        
-        # Title
-        title_style = ParagraphStyle(
-            'Title',
-            parent=self.styles['Heading1'],
-            fontSize=18,
-            spaceAfter=30,
-            alignment=1  # Center
-        )
-        
-        story.append(Paragraph("StegHunter Analysis Report", title_style))
-        story.append(Spacer(1, 0.2 * inch))
-        
-        # Basic Image Information
-        story.append(self._create_image_info_section(image_path, analysis_results))
-        story.append(Spacer(1, 0.2 * inch))
-        
-        # Analysis Results with Chart
+        # Generate PDF
         try:
-            story.extend(self._create_analysis_results_with_chart(analysis_results))
-            story.append(Spacer(1, 0.2 * inch))
+            from weasyprint import HTML
+            HTML(string=html_content).write_pdf(output_pdf_path)
+            return output_pdf_path
         except Exception as e:
-            print(f"Chart creation failed: {e}")
-            story.append(Paragraph("<b>Analysis Results:</b>", self.custom_style))
-            story.append(self._create_analysis_results_section(analysis_results))
-            story.append(Spacer(1, 0.2 * inch))
-        
-        # Method Details
-        story.append(self._create_method_details_section(analysis_results))
-        story.append(Spacer(1, 0.2 * inch))
-        
-        # Heatmap (if available)
-        if heatmap_path and os.path.exists(heatmap_path):
-            story.append(self._create_heatmap_section(heatmap_path))
-            story.append(Spacer(1, 0.2 * inch))
-        
-        # Risk Assessment
-        story.append(self._create_risk_assessment_section(analysis_results))
-        story.append(Spacer(1, 0.2 * inch))
-        
-        # Footer
-        story.append(self._create_footer())
-        
-        # Build PDF
-        doc.build(story)
-        
-        # Clean up temporary files
-        self.cleanup_temp_files()
-        
-        return output_path
+            raise Exception(f"PDF generation failed: {str(e)}")
     
-    def create_batch_report(self, batch_results: List[Dict], output_path: str = None) -> str:
+    def _generate_html(self, analysis_results: dict, image_path: str) -> str:
+        """Generate professional HTML for PDF"""
+        
+        # Encode image to base64
+        image_base64 = self._encode_image_to_base64(image_path)
+        
+        # Extract analysis data
+        verdict = analysis_results.get('verdict', 'UNKNOWN')
+        confidence = analysis_results.get('confidence_score', 0)
+        methods_used = analysis_results.get('methods_used', [])
+        overall_score = analysis_results.get('overall_score', 0)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Get hiding locations if available
+        hiding_locs = analysis_results.get('hiding_locations', {})
+        
+        # Build sections
+        verdict_color = self._get_verdict_color(verdict)
+        verdict_border_color = self._get_verdict_border_color(verdict)
+        methods_html = self._build_methods_section(analysis_results)
+        locations_html = self._build_locations_section(hiding_locs)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background-color: #f5f5f5;
+                    color: #333;
+                    line-height: 1.6;
+                }}
+                
+                .page {{
+                    background-color: white;
+                    page-break-after: always;
+                    padding: 40px;
+                }}
+                
+                .header {{
+                    border-bottom: 3px solid #0066CC;
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                }}
+                
+                .logo {{
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #0066CC;
+                    margin-bottom: 10px;
+                }}
+                
+                .subtitle {{
+                    font-size: 12px;
+                    color: #666;
+                }}
+                
+                .timestamp {{
+                    font-size: 11px;
+                    color: #999;
+                    margin-top: 10px;
+                }}
+                
+                .verdict-section {{
+                    background-color: {verdict_color};
+                    border-left: 5px solid {verdict_border_color};
+                    padding: 20px;
+                    margin-bottom: 30px;
+                    border-radius: 4px;
+                    color: white;
+                }}
+                
+                .verdict-title {{
+                    font-size: 14px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    margin-bottom: 10px;
+                }}
+                
+                .verdict-content {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }}
+                
+                .verdict-text {{
+                    font-size: 16px;
+                    font-weight: bold;
+                }}
+                
+                .confidence {{
+                    font-size: 18px;
+                    font-weight: bold;
+                }}
+                
+                .section {{
+                    margin-bottom: 30px;
+                }}
+                
+                .section-title {{
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #0066CC;
+                    border-bottom: 2px solid #0066CC;
+                    padding-bottom: 10px;
+                    margin-bottom: 15px;
+                }}
+                
+                .image-container {{
+                    margin: 20px 0;
+                    text-align: center;
+                }}
+                
+                .image-container img {{
+                    max-width: 100%;
+                    height: auto;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }}
+                
+                .image-label {{
+                    font-size: 11px;
+                    color: #666;
+                    margin-top: 5px;
+                    font-style: italic;
+                }}
+                
+                .grid {{
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    margin-bottom: 20px;
+                }}
+                
+                .stat-box {{
+                    background-color: #f9f9f9;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    padding: 15px;
+                }}
+                
+                .stat-label {{
+                    font-size: 11px;
+                    color: #666;
+                    text-transform: uppercase;
+                    font-weight: bold;
+                    margin-bottom: 5px;
+                }}
+                
+                .stat-value {{
+                    font-size: 20px;
+                    font-weight: bold;
+                    color: #0066CC;
+                }}
+                
+                .methods-list {{
+                    background-color: #f9f9f9;
+                    border-left: 4px solid #0066CC;
+                    padding: 15px;
+                    margin-bottom: 15px;
+                    border-radius: 2px;
+                }}
+                
+                .method-item {{
+                    margin-bottom: 10px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #e0e0e0;
+                }}
+                
+                .method-item:last-child {{
+                    border-bottom: none;
+                    margin-bottom: 0;
+                    padding-bottom: 0;
+                }}
+                
+                .method-name {{
+                    font-weight: bold;
+                    color: #333;
+                    font-size: 12px;
+                }}
+                
+                .method-score {{
+                    font-size: 11px;
+                    color: #0066CC;
+                }}
+                
+                .method-desc {{
+                    font-size: 11px;
+                    color: #666;
+                    margin-top: 3px;
+                }}
+                
+                .locations-grid {{
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 15px;
+                    margin-bottom: 15px;
+                }}
+                
+                .location-box {{
+                    background-color: #fafafa;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    padding: 12px;
+                    font-size: 11px;
+                }}
+                
+                .location-title {{
+                    font-weight: bold;
+                    color: #0066CC;
+                    margin-bottom: 5px;
+                }}
+                
+                .location-info {{
+                    color: #666;
+                    margin-bottom: 3px;
+                }}
+                
+                .suspicion-high {{
+                    color: #d32f2f;
+                    font-weight: bold;
+                }}
+                
+                .suspicion-medium {{
+                    color: #f57c00;
+                    font-weight: bold;
+                }}
+                
+                .suspicion-low {{
+                    color: #388e3c;
+                    font-weight: bold;
+                }}
+                
+                .footer {{
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 10px;
+                    color: #999;
+                    text-align: center;
+                }}
+                
+                .progress-bar {{
+                    background-color: #e0e0e0;
+                    border-radius: 3px;
+                    height: 20px;
+                    overflow: hidden;
+                    margin-top: 5px;
+                }}
+                
+                .progress-fill {{
+                    background-color: #0066CC;
+                    height: 100%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="page">
+                <!-- Header -->
+                <div class="header">
+                    <div class="logo">🔍 StegHunter Analysis Report</div>
+                    <div class="subtitle">Professional Steganography Detection Analysis</div>
+                    <div class="timestamp">Generated on {timestamp}</div>
+                </div>
+                
+                <!-- Verdict Section -->
+                <div class="verdict-section">
+                    <div class="verdict-title">Analysis Verdict</div>
+                    <div class="verdict-content">
+                        <div class="verdict-text">{verdict}</div>
+                        <div class="confidence">Confidence: {confidence:.1f}%</div>
+                    </div>
+                </div>
+                
+                <!-- Overview Statistics -->
+                <div class="section">
+                    <div class="section-title">📊 Analysis Overview</div>
+                    <div class="grid">
+                        <div class="stat-box">
+                            <div class="stat-label">Overall Score</div>
+                            <div class="stat-value">{overall_score:.1f}/100</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {overall_score}%">{overall_score:.0f}%</div>
+                            </div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Confidence Level</div>
+                            <div class="stat-value">{confidence:.1f}%</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {confidence}%">{confidence:.0f}%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Image Analysis -->
+                <div class="section">
+                    <div class="section-title">🖼️ Analyzed Image</div>
+                    <div class="image-container">
+                        <img src="data:image/jpeg;base64,{image_base64}" alt="Analyzed Image">
+                        <div class="image-label">File: {Path(image_path).name}</div>
+                    </div>
+                </div>
+                
+                <!-- Methods Used -->
+                <div class="section">
+                    <div class="section-title">🔬 Detection Methods</div>
+                    {methods_html}
+                </div>
+                
+                <!-- Hiding Locations -->
+                {locations_html}
+                
+                <!-- Footer -->
+                <div class="footer">
+                    <p>This report was generated by StegHunter - Professional Steganography Detection Tool</p>
+                    <p>For more information, visit: https://github.com/hackr25/StegHunter</p>
+                </div>
+            </div>
+        </body>
+        </html>
         """
-        Create a summary PDF report for batch analysis with charts
-        """
-        if output_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = f"batch_report_{timestamp}.pdf"
         
-        doc = SimpleDocTemplate(output_path, pagesize=A4)
-        story = []
+        return html
+    
+    def _build_methods_section(self, analysis_results: dict) -> str:
+        """Build methods section HTML"""
+        methods = analysis_results.get('methods_used', [])
         
-        # Title
-        title_style = ParagraphStyle(
-            'Title',
-            parent=self.styles['Heading1'],
-            fontSize=18,
-            spaceAfter=30,
-            alignment=1
-        )
+        if not methods:
+            return "<p>No detection methods applied.</p>"
         
-        story.append(Paragraph("StegHunter Batch Analysis Report", title_style))
-        story.append(Spacer(1, 0.2 * inch))
+        html = '<div class="methods-list">'
+        for method in methods:
+            name = method.get('name', 'Unknown Method')
+            score = method.get('score', 0)
+            description = method.get('description', '')
+            
+            html += f"""
+            <div class="method-item">
+                <div class="method-name">• {name}</div>
+                <div class="method-score">Score: {score:.1f}/100</div>
+                <div class="method-desc">{description}</div>
+            </div>
+            """
         
-        # Summary Statistics
-        story.append(self._create_batch_summary_section(batch_results))
-        story.append(Spacer(1, 0.2 * inch))
+        html += '</div>'
+        return html
+    
+    def _build_locations_section(self, hiding_locations: dict) -> str:
+        """Build hiding locations section HTML"""
         
-        # Charts and Visualizations
+        if not hiding_locations:
+            return ""
+        
+        html = '<div class="section"><div class="section-title">📍 Potential Hiding Locations</div>'
+        
+        # Channel Analysis
+        channel_analysis = hiding_locations.get('channel_analysis', {})
+        if channel_analysis:
+            html += '<div><strong>Channel Analysis:</strong></div>'
+            rgb_lsb = channel_analysis.get('rgb_lsb', {})
+            for channel, data in rgb_lsb.items():
+                if data.get('suspicious'):
+                    suspicion = data.get('suspicion_level', 'MEDIUM')
+                    html += f'<div class="location-info">• <strong>{channel}:</strong> {suspicion} suspicion</div>'
+        
+        # Suspicious Areas
+        suspicious_areas = hiding_locations.get('suspicious_areas', [])
+        if suspicious_areas:
+            html += '<div style="margin-top: 15px;"><strong>Specific Areas:</strong></div>'
+            html += '<div class="locations-grid">'
+            for area in suspicious_areas[:4]:  # Show top 4
+                location = area.get('location', 'Unknown')
+                score = area.get('suspicion_score', 0)
+                reason = area.get('reason', '')
+                
+                suspicion_class = 'suspicion-high' if score > 75 else 'suspicion-medium' if score > 50 else 'suspicion-low'
+                
+                html += f"""
+                <div class="location-box">
+                    <div class="location-title">{location}</div>
+                    <div class="location-info">
+                        Suspicion: <span class="{suspicion_class}">{score:.1f}%</span>
+                    </div>
+                    <div class="location-info">{reason}</div>
+                </div>
+                """
+            html += '</div>'
+        
+        html += '</div>'
+        return html
+    
+    def _encode_image_to_base64(self, image_path: str) -> str:
+        """Encode image to base64 for embedding in HTML"""
         try:
-            story.extend(self._create_batch_charts_section(batch_results))
-            story.append(Spacer(1, 0.2 * inch))
-        except Exception as e:
-            print(f"Batch chart creation failed: {e}")
-            story.append(Paragraph("<b>Analysis Summary:</b>", self.custom_style))
-            story.append(self._create_batch_summary_section(batch_results))
-            story.append(Spacer(1, 0.2 * inch))
-        
-        # Detailed Results Table
-        story.append(self._create_batch_results_table(batch_results))
-        story.append(Spacer(1, 0.2 * inch))
-        
-        # Footer
-        story.append(self._create_footer())
-        
-        # Build PDF
-        doc.build(story)
-        
-        # Clean up temporary files
-        self.cleanup_temp_files()
-        
-        return output_path
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+            return base64.b64encode(image_data).decode('utf-8')
+        except Exception:
+            # Return a placeholder if image can't be read
+            return ""
     
-    def _create_analysis_results_with_chart(self, results: Dict) -> list:
-        """Create analysis results section with embedded chart"""
-        elements = []
-        
-        # Results table
-        elements.append(self._create_analysis_results_section(results))
-        elements.append(Spacer(1, 0.2 * inch))
-        
-        # Create and embed chart
-        try:
-            chart_path = self._create_single_image_chart(results)
-            if chart_path and os.path.exists(chart_path):
-                elements.append(Paragraph("<b>Analysis Visualization:</b>", self.custom_style))
-                # Resize image to fit page
-                img = Image(chart_path, width=5*inch, height=3*inch)
-                elements.append(img)
-                elements.append(Spacer(1, 0.2 * inch))
-                self.temp_files.append(chart_path)  # Track for cleanup
-        except Exception as e:
-            print(f"Chart creation failed: {e}")
-            # Fallback to just the table
-            pass
-        
-        return elements
-    
-    def _create_single_image_chart(self, results: Dict) -> str:
-        """Create a chart for single image analysis"""
-        try:
-            # Create a temporary file for the chart
-            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-            temp_path = temp_file.name
-            temp_file.close()
-            
-            plt.switch_backend('Agg')  # Use non-interactive backend
-            
-            if 'methods' in results:
-                # Heuristic analysis - create bar chart of method scores
-                methods_data = {}
-                for method_name, method_results in results['methods'].items():
-                    score = method_results.get('lsb_suspicion_score', 
-                                            method_results.get('basic_suspicion_score', 0))
-                    methods_data[method_name] = score
-                
-                # Create bar chart
-                plt.figure(figsize=(8, 6))
-                method_names = list(methods_data.keys())
-                scores = list(methods_data.values())
-                
-                bars = plt.bar(method_names, scores, color=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99'])
-                plt.title('Analysis Method Scores')
-                plt.ylabel('Suspicion Score')
-                plt.ylim(0, 100)
-                
-                # Add value labels on bars
-                for bar in bars:
-                    height = bar.get_height()
-                    plt.text(bar.get_x() + bar.get_width()/2., height + 1,
-                            f'{height:.1f}', ha='center', va='bottom')
-                
-                plt.tight_layout()
-                plt.savefig(temp_path, dpi=100, bbox_inches='tight')
-                plt.close()
-                
-            else:
-                # ML analysis - create probability chart
-                probability = results.get('ml_probability', 0) * 100
-                confidence = results.get('ml_confidence', 0) * 100
-                
-                plt.figure(figsize=(8, 6))
-                categories = ['Stego Probability', 'Model Confidence']
-                values = [probability, confidence]
-                colors = ['#ff9999', '#66b3ff']
-                
-                bars = plt.bar(categories, values, color=colors)
-                plt.title('ML Analysis Results')
-                plt.ylabel('Percentage (%)')
-                plt.ylim(0, 100)
-                
-                for bar in bars:
-                    height = bar.get_height()
-                    plt.text(bar.get_x() + bar.get_width()/2., height + 1,
-                            f'{height:.1f}%', ha='center', va='bottom')
-                
-                plt.tight_layout()
-                plt.savefig(temp_path, dpi=100, bbox_inches='tight')
-                plt.close()
-            
-            return temp_path
-            
-        except Exception as e:
-            print(f"Error creating chart: {e}")
-            return None
-    
-    def _create_batch_charts_section(self, results: List[Dict]) -> list:
-        """Create charts section for batch report"""
-        elements = []
-        
-        try:
-            # Create summary chart
-            chart_path = self._create_batch_summary_chart(results)
-            if chart_path and os.path.exists(chart_path):
-                elements.append(Paragraph("<b>Batch Analysis Summary:</b>", self.custom_style))
-                img = Image(chart_path, width=6*inch, height=4*inch)
-                elements.append(img)
-                elements.append(Spacer(1, 0.2 * inch))
-                self.temp_files.append(chart_path)
-            
-            # Create distribution chart
-            dist_path = self._create_score_distribution_chart(results)
-            if dist_path and os.path.exists(dist_path):
-                elements.append(Paragraph("<b>Score Distribution:</b>", self.custom_style))
-                img = Image(dist_path, width=6*inch, height=4*inch)
-                elements.append(img)
-                self.temp_files.append(dist_path)
-                
-        except Exception as e:
-            elements.append(Paragraph(f"<i>Charts unavailable: {str(e)}</i>", self.custom_style))
-        
-        return elements
-    
-    def _create_batch_summary_chart(self, results: List[Dict]) -> str:
-        """Create a summary chart for batch results"""
-        try:
-            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-            temp_path = temp_file.name
-            temp_file.close()
-            
-            plt.switch_backend('Agg')  # Use non-interactive backend
-            
-            # Count results by category
-            categories = {'High Suspicion': 0, 'Low Suspicion': 0}
-            for result in results:
-                if 'ml_prediction' in result:
-                    if result['ml_prediction'] == 1:
-                        categories['High Suspicion'] += 1
-                    else:
-                        categories['Low Suspicion'] += 1
-                else:
-                    if result.get('final_suspicion_score', 0) >= 50:
-                        categories['High Suspicion'] += 1
-                    else:
-                        categories['Low Suspicion'] += 1
-            
-            # Create pie chart
-            plt.figure(figsize=(8, 6))
-            labels = list(categories.keys())
-            sizes = list(categories.values())
-            colors = ['#ff9999', '#66b3ff']
-            
-            plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-            plt.title('Suspicion Level Distribution')
-            plt.axis('equal')
-            
-            plt.tight_layout()
-            plt.savefig(temp_path, dpi=100, bbox_inches='tight')
-            plt.close()
-            
-            return temp_path
-            
-        except Exception as e:
-            print(f"Error creating batch chart: {e}")
-            return None
-    
-    def _create_score_distribution_chart(self, results: List[Dict]) -> str:
-        """Create score distribution chart"""
-        try:
-            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-            temp_path = temp_file.name
-            temp_file.close()
-            
-            plt.switch_backend('Agg')
-            
-            # Extract scores
-            scores = []
-            for result in results:
-                if 'ml_prediction' in result:
-                    scores.append(result.get('ml_probability', 0) * 100)
-                else:
-                    scores.append(result.get('final_suspicion_score', 0))
-            
-            # Create histogram
-            plt.figure(figsize=(8, 6))
-            plt.hist(scores, bins=10, alpha=0.7, color='skyblue', edgecolor='black')
-            plt.title('Score Distribution')
-            plt.xlabel('Suspicion Score')
-            plt.ylabel('Number of Images')
-            plt.grid(axis='y', alpha=0.75)
-            
-            plt.tight_layout()
-            plt.savefig(temp_path, dpi=100, bbox_inches='tight')
-            plt.close()
-            
-            return temp_path
-            
-        except Exception as e:
-            print(f"Error creating distribution chart: {e}")
-            return None
-    
-    def _create_image_info_section(self, image_path: str, results: Dict) -> Table:
-        """Create image information section"""
-        image_info = [
-            ["Filename:", Path(image_path).name],
-            ["File Size:", f"{Path(image_path).stat().st_size:,} bytes"],
-            ["Dimensions:", f"{results.get('dimensions', ['N/A'])[0]} x {results.get('dimensions', ['N/A', 'N/A'])[1]}"],
-            ["Format:", results.get('format', 'N/A')],
-            ["Color Mode:", results.get('mode', 'N/A')],
-            ["Analysis Date:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-        ]
-        
-        table = Table(image_info, colWidths=[2*inch, 4*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        return table
-    
-    def _create_analysis_results_section(self, results: Dict) -> Table:
-        """Create analysis results section"""
-        if 'ml_prediction' in results:
-            # ML results
-            prediction = "Steganography Detected" if results['ml_prediction'] == 1 else "Clean Image"
-            confidence = f"{results.get('ml_confidence', 0) * 100:.1f}%"
-            score = f"{results.get('ml_probability', 0) * 100:.1f}%"
+    def _get_verdict_color(self, verdict: str) -> str:
+        """Get background color based on verdict"""
+        verdict_upper = verdict.upper()
+        if 'DETECTED' in verdict_upper or 'POSITIVE' in verdict_upper:
+            return '#d32f2f'  # Red - steganography detected
+        elif 'SUSPICIOUS' in verdict_upper:
+            return '#f57c00'  # Orange - possibly suspicious
+        elif 'CLEAN' in verdict_upper or 'NEGATIVE' in verdict_upper:
+            return '#388e3c'  # Green - clean
         else:
-            # Heuristic results
-            score = results.get('final_suspicion_score', 0)
-            confidence = "N/A"
-            prediction = "High Suspicion" if score >= 50 else "Low Suspicion"
-        
-        analysis_data = [
-            ["Final Score:", f"{score}/100"],
-            ["Prediction:", prediction],
-            ["Confidence Level:", confidence],
-            ["Analysis Method:", results.get('method', 'Heuristic Analysis')]
-        ]
-        
-        table = Table(analysis_data, colWidths=[2*inch, 4*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        return table
+            return '#1976d2'  # Blue - neutral
     
-    def _create_method_details_section(self, results: Dict) -> Table:
-        """Create method-specific details section"""
-        if 'methods' in results:
-            # Heuristic methods
-            methods_data = []
-            for method_name, method_results in results['methods'].items():
-                method_data = [
-                    [f"{method_name.upper()} Analysis", ""],
-                    ["Suspicion Score:", f"{method_results.get('lsb_suspicion_score', method_results.get('basic_suspicion_score', 0)):.1f}/100"]
-                ]
-                
-                # Add method-specific metrics
-                if method_name == 'lsb':
-                    method_data.append(["LSB Entropy:", f"{method_results.get('entropy', 0):.4f}"])
-                    method_data.append(["LSB Balance:", f"{method_results.get('lsb_balance', 0):.4f}"])
-                elif method_name == 'chi_square':
-                    method_data.append(["Chi-Square P-value:", f"{method_results.get('p_value', 0):.4f}"])
-                
-                methods_data.extend(method_data)
-                methods_data.append(["", ""])  # Add spacing
+    def _get_verdict_border_color(self, verdict: str) -> str:
+        """Get border color based on verdict"""
+        verdict_upper = verdict.upper()
+        if 'DETECTED' in verdict_upper or 'POSITIVE' in verdict_upper:
+            return '#b71c1c'  # Darker red
+        elif 'SUSPICIOUS' in verdict_upper:
+            return '#e65100'  # Darker orange
+        elif 'CLEAN' in verdict_upper or 'NEGATIVE' in verdict_upper:
+            return '#1b5e20'  # Darker green
         else:
-            # ML method
-            methods_data = [
-                ["Machine Learning Analysis", ""],
-                ["Prediction Probability:", f"{results.get('ml_probability', 0) * 100:.1f}%"],
-                ["Model Confidence:", f"{results.get('ml_confidence', 0) * 100:.1f}%"],
-                ["Features Used:", "70+ statistical and frequency features"]
-            ]
-        
-        table = Table(methods_data, colWidths=[2.5*inch, 3.5*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        return table
-    
-    def _create_heatmap_section(self, heatmap_path: str) -> Paragraph:
-        """Create heatmap section"""
-        return Paragraph(f"<b>Visual Analysis:</b><br/>Heatmap visualization available at: {heatmap_path}", self.custom_style)
-    
-    def _create_risk_assessment_section(self, results: Dict) -> Table:
-        """Create risk assessment section"""
-        if 'ml_prediction' in results:
-            risk_level = "HIGH" if results['ml_prediction'] == 1 else "LOW"
-            recommendation = "Investigate further" if risk_level == "HIGH" else "No immediate action required"
-        else:
-            score = results.get('final_suspicion_score', 0)
-            if score >= 75:
-                risk_level = "HIGH"
-                recommendation = "Strong evidence of steganography - investigate immediately"
-            elif score >= 50:
-                risk_level = "MEDIUM"
-                recommendation = "Suspicious - recommend further analysis"
-            else:
-                risk_level = "LOW"
-                recommendation = "No significant evidence of steganography"
-        
-        risk_data = [
-            ["Risk Level:", risk_level],
-            ["Recommendation:", recommendation],
-            ["Next Steps:", "Consider using additional detection methods for verification"]
-        ]
-        
-        # Color coding based on risk
-        color_map = {
-            "HIGH": colors.red,
-            "MEDIUM": colors.orange,
-            "LOW": colors.green
-        }
-        
-        table = Table(risk_data, colWidths=[2*inch, 4*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), color_map.get(risk_level, colors.grey)),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        return table
-    
-    def _create_batch_summary_section(self, results: List[Dict]) -> Table:
-        """Create batch summary statistics"""
-        total_files = len(results)
-        
-        # Count suspicious files
-        suspicious_count = 0
-        for result in results:
-            if 'ml_prediction' in result:
-                if result['ml_prediction'] == 1:
-                    suspicious_count += 1
-            else:
-                if result.get('final_suspicion_score', 0) >= 50:
-                    suspicious_count += 1
-        
-        clean_count = total_files - suspicious_count
-        
-        summary_data = [
-            ["Total Files Analyzed:", str(total_files)],
-            ["Suspicious Files:", str(suspicious_count)],
-            ["Clean Files:", str(clean_count)],
-            ["Suspicion Rate:", f"{(suspicious_count/total_files)*100:.1f}%"],
-            ["Analysis Date:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-        ]
-        
-        table = Table(summary_data, colWidths=[2.5*inch, 2.5*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        return table
-    
-    def _create_batch_results_table(self, results: List[Dict]) -> Table:
-        """Create detailed batch results table"""
-        table_data = [["Filename", "Method", "Score", "Prediction", "Status"]]
-        
-        for result in results:
-            filename = result.get('filename', 'Unknown')
-            
-            if 'ml_prediction' in result:
-                method = "ML"
-                score = f"{result.get('ml_probability', 0) * 100:.1f}%"
-                prediction = "STEGO" if result['ml_prediction'] == 1 else "CLEAN"
-            else:
-                method = "Heuristic"
-                score = f"{result.get('final_suspicion_score', 0):.1f}"
-                prediction = "HIGH" if result.get('final_suspicion_score', 0) >= 50 else "LOW"
-            
-            status = "⚠️ Suspicious" if prediction in ["STEGO", "HIGH"] else "✅ Clean"
-            
-            table_data.append([filename, method, score, prediction, status])
-        
-        table = Table(table_data, colWidths=[2*inch, 1*inch, 1*inch, 1*inch, 1.5*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        return table
-    
-    def _create_footer(self) -> Paragraph:
-        """Create report footer"""
-        footer_text = f"Generated by StegHunter v1.0.0 on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}"
-        return Paragraph(footer_text, self.custom_style)
-    
-
-    def create_forensic_report(self, image_path: str, analysis_results: Dict,
-                            ela_heatmap_path: str = None,
-                            ghost_heatmap_path: str = None,
-                            noise_heatmap_path: str = None,
-                            clone_viz_path: str = None,
-                            metadata_results: Dict = None,
-                            output_path: str = None) -> str:
-        """
-        Extended forensic report including ELA, Ghost, Noise, Clone and Metadata sections.
-        Falls back gracefully when optional sections are not provided.
-        """
-        if output_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = f"forensic_report_{Path(image_path).stem}_{timestamp}.pdf"
-
-        doc = SimpleDocTemplate(output_path, pagesize=A4)
-        story = []
-
-        title_style = ParagraphStyle(
-            'ForensicTitle',
-            parent=self.styles['Heading1'],
-            fontSize=18, spaceAfter=20, alignment=1
-        )
-        story.append(Paragraph("StegHunter Forensic Analysis Report", title_style))
-        story.append(Spacer(1, 0.15 * inch))
-
-        # ── Core image info ──
-        story.append(self._create_image_info_section(image_path, analysis_results))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # ── Standard analysis results ──
-        story.extend(self._create_analysis_results_with_chart(analysis_results))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # ── Metadata section ──
-        if metadata_results:
-            story.append(self._create_metadata_section(metadata_results))
-            story.append(Spacer(1, 0.2 * inch))
-
-        # ── Visual forensic maps ──
-        visual_paths = [
-            ('ELA (Error Level Analysis)', ela_heatmap_path),
-            ('JPEG Ghost Map',             ghost_heatmap_path),
-            ('Noise / LGA Map',            noise_heatmap_path),
-            ('Clone Detection Map',        clone_viz_path),
-        ]
-        for label, path in visual_paths:
-            if path and os.path.exists(path):
-                story.append(self._create_visual_section(label, path))
-                story.append(Spacer(1, 0.15 * inch))
-
-        # ── Risk assessment ──
-        story.append(self._create_risk_assessment_section(analysis_results))
-        story.append(Spacer(1, 0.15 * inch))
-
-        story.append(self._create_footer())
-        doc.build(story)
-        self.cleanup_temp_files()
-        return output_path
-
-    def _create_metadata_section(self, metadata_results: Dict) -> Table:
-        """
-        Render EXIF / metadata findings table.
-        Anomalies are highlighted in light-red.
-        """
-        heading_style = ParagraphStyle(
-            'MetaHead', parent=self.styles['Heading2'],
-            fontSize=12, spaceAfter=6
-        )
-
-        rows = [["Field", "Value"]]
-        exif = metadata_results.get('exif', {})
-        for key, value in list(exif.items())[:30]:          # cap at 30 rows
-            rows.append([str(key), str(value)[:80]])
-
-        anomalies = metadata_results.get('anomalies', [])
-        if anomalies:
-            rows.append(["⚠ Anomalies", ", ".join(anomalies)])
-
-        platform = metadata_results.get('platform', None)
-        if platform and platform != 'Unknown':
-            rows.append(["Platform detected", platform])
-
-        table = Table(rows, colWidths=[2.2 * inch, 3.8 * inch])
-        style = [
-            ('BACKGROUND', (0, 0), (-1, 0), colors.steelblue),
-            ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-            ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE',   (0, 0), (-1, -1), 8),
-            ('GRID',       (0, 0), (-1, -1), 0.5, colors.grey),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
-        ]
-        # Highlight anomaly row red
-        for i, row in enumerate(rows):
-            if row[0].startswith('⚠'):
-                style.append(('BACKGROUND', (0, i), (-1, i), colors.mistyrose))
-        table.setStyle(TableStyle(style))
-        return table
-
-    def _create_visual_section(self, label: str, image_path: str):
-        """
-        Embed a forensic heatmap image in the report with a label.
-        Returns a list containing the Paragraph + Image flowables.
-        """
-        from reportlab.platypus import KeepTogether
-        elements = []
-        elements.append(Paragraph(f"<b>{label}:</b>", self.custom_style))
-        try:
-            img = Image(image_path, width=5 * inch, height=3 * inch)
-            elements.append(img)
-        except Exception as e:
-            elements.append(Paragraph(
-                f"<i>Image unavailable: {e}</i>", self.custom_style
-            ))
-        return KeepTogether(elements)
-
-    def add_ela_section_to_report(self, story: list, ela_results: Dict,
-                                ela_heatmap_path: str = None) -> None:
-        """
-        Append an ELA section to an existing story list in-place.
-        Call this before doc.build() to inject ELA data into any report.
-        """
-        story.append(Paragraph("<b>Error Level Analysis (ELA)</b>", self.custom_style))
-
-        ela_data = [
-            ["ELA Mean",         f"{ela_results.get('ela_mean', 0):.3f}"],
-            ["ELA Std Dev",      f"{ela_results.get('ela_std', 0):.3f}"],
-            ["ELA Max",          f"{ela_results.get('ela_max', 0):.3f}"],
-            ["Suspicion Score",  f"{ela_results.get('suspicion_score', 0):.1f}/100"],
-        ]
-        table = Table(ela_data, colWidths=[2 * inch, 4 * inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightsteelblue),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-        ]))
-        story.append(table)
-        story.append(Spacer(1, 0.1 * inch))
-
-        if ela_heatmap_path and os.path.exists(ela_heatmap_path):
-            story.append(Image(ela_heatmap_path, width=5 * inch, height=3 * inch))
-            self.temp_files.append(ela_heatmap_path)
+            return '#0d47a1'  # Darker blue

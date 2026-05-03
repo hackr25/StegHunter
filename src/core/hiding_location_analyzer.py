@@ -333,14 +333,16 @@ class HidingLocationAnalyzer:
         
         return float(noise_level)
     
-    def generate_location_heatmap(self, image_path: str, output_path: str = None) -> np.ndarray:
+    
+    def generate_location_heatmap(self, image_path: str) -> np.ndarray:
         """
-        Generate visual heatmap showing WHERE steganography is likely hidden
+        Generate heatmap showing WHERE steganography is likely hidden
+        Returns only the heatmap array (no file saving)
         """
         analysis = self.analyze_hiding_locations(image_path)
         heatmap = analysis['region_hotspots']['heatmap']
         
-        # Load original image for blending
+        # Load original image for reference
         image = Image.open(image_path)
         img_array = np.array(image)
         if len(img_array.shape) == 2:
@@ -358,9 +360,5 @@ class HidingLocationAnalyzer:
         
         # Blend with original image
         blended = cv2.addWeighted(img_array, 0.6, heatmap_colored, 0.4, 0)
-        
-        if output_path:
-            blended_pil = Image.fromarray(blended)
-            blended_pil.save(output_path)
         
         return blended
