@@ -38,19 +38,23 @@ VIDEO_FORMATS = {
 # ---------------------------------------------------------
 
 DEFAULT_WEIGHTS = {
-    "basic": 0.04,
-    "lsb": 0.09,
-    "chi_square": 0.07,
-    "pixel_differencing": 0.07,
-    "jpeg_structure": 0.08,
-    "metadata": 0.05,
-    "format_validation": 0.05,
-    "ela": 0.15,
+    "basic": 0.03,
+    "lsb": 0.06,
+    "rs_analysis": 0.06,
+    "spa_analysis": 0.06,
+    "chi_square": 0.05,
+    "pixel_differencing": 0.05,
+    "jpeg_structure": 0.06,
+    "dct_analysis": 0.08,
+    "metadata": 0.04,
+    "format_validation": 0.04,
+    "png_chunk_analysis": 0.05,
+    "ela": 0.12,
     "jpeg_ghost": 0.08,
-    "noise": 0.08,
-    "color_space": 0.08,
-    "clone_detection": 0.08,
-    "deep_learning": 0.16
+    "noise": 0.07,
+    "color_space": 0.06,
+    "clone_detection": 0.05,
+    "deep_learning": 0.19
 }
 
 # ---------------------------------------------------------

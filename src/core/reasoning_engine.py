@@ -19,7 +19,11 @@ class ReasoningEngine:
             "color_space": 35.0,
             "metadata": 20.0,
             "clone_detection": 30.0,
-            "deep_learning": 50.0
+            "rs_analysis": 35.0,
+            "spa_analysis": 35.0,
+            "dct_analysis": 35.0,
+            "deep_learning": 50.0,
+            "png_chunk_analysis": 20.0,
         }
 
     def generate_explanation(self, results: Dict[str, Any]) -> Dict[str, Any]:
@@ -36,6 +40,22 @@ class ReasoningEngine:
                 findings.append(
                     f"❌ LSB forensic anomaly detected ({lsb_score:.2f}%): "
                     f"least-significant bit randomness, spatial correlation disruption, and bit-plane balance suggest hidden payload insertion."
+                )
+
+        if "rs_analysis" in methods:
+            rs_score = methods["rs_analysis"].get("suspicion_score", 0)
+            if rs_score > self.thresholds["rs_analysis"]:
+                findings.append(
+                    f"⚠️ RS statistical imbalance anomaly ({rs_score:.2f}%): "
+                    f"Regular/Singular group equilibrium suggests probable least-significant-bit embedding disturbance."
+                )
+
+        if "spa_analysis" in methods:
+            spa_score = methods["spa_analysis"].get("suspicion_score", 0)
+            if spa_score > self.thresholds["spa_analysis"]:
+                findings.append(
+                    f"⚠️ Sample Pair transition anomaly ({spa_score:.2f}%): "
+                    f"neighboring grayscale parity relationships indicate probable LSB replacement behavior."
                 )
 
         # ---------------------------------------------------------
@@ -102,6 +122,17 @@ class ReasoningEngine:
                 )
 
         # ---------------------------------------------------------
+        # DCT ANALYSIS
+        # ---------------------------------------------------------
+        if "dct_analysis" in methods:
+            dct_score = methods["dct_analysis"].get("suspicion_score", 0)
+            if dct_score > self.thresholds["dct_analysis"]:
+                findings.append(
+                    f"⚠️ JPEG frequency-domain coefficient anomaly ({dct_score:.2f}%): "
+                    f"AC coefficient population statistics indicate probable transform-domain embedding disturbance."
+                )
+
+        # ---------------------------------------------------------
         # METADATA
         # ---------------------------------------------------------
         if "metadata" in methods:
@@ -110,6 +141,17 @@ class ReasoningEngine:
                 findings.append(
                     f"ℹ️ Metadata irregularity ({score:.2f}%): "
                     f"EXIF/metadata structure suggests prior editing, stripping, or processing."
+                )
+
+        # ---------------------------------------------------------
+        # PNG STRUCTURAL FORENSICS
+        # ---------------------------------------------------------
+        if "png_chunk_analysis" in methods:
+            png_score = methods["png_chunk_analysis"].get("suspicion_score", 0)
+            if png_score > self.thresholds["png_chunk_analysis"]:
+                findings.append(
+                    f"⚠️ PNG structural chunk anomaly ({png_score:.2f}%): "
+                    f"ancillary metadata chunk abuse or appended binary payload suggests non-visual concealment."
                 )
 
         # ---------------------------------------------------------
@@ -135,6 +177,55 @@ class ReasoningEngine:
                     f"🚨 Deep CNN steganalyzer flagged embedded artifact probability ({dl_score:.2f}%) "
                     f"with confidence {dl_conf:.2f}%. Learned residual signatures are consistent with hidden-data embedding."
                 )
+
+        # ---------------------------------------------------------
+        # DETECTOR FAMILY CONVERGENCE ANALYSIS
+        # ---------------------------------------------------------
+        lsb_family = 0
+        jpeg_family = 0
+        manipulation_family = 0
+
+        if methods.get("lsb", {}).get("lsb_suspicion_score", 0) > self.thresholds["lsb"]:
+            lsb_family += 1
+        if methods.get("rs_analysis", {}).get("suspicion_score", 0) > self.thresholds["rs_analysis"]:
+            lsb_family += 1
+        if methods.get("spa_analysis", {}).get("suspicion_score", 0) > self.thresholds["spa_analysis"]:
+            lsb_family += 1
+
+        if methods.get("jpeg_ghost", {}).get("suspicion_score", 0) > self.thresholds["jpeg_ghost"]:
+            jpeg_family += 1
+        if methods.get("dct_analysis", {}).get("suspicion_score", 0) > self.thresholds["dct_analysis"]:
+            jpeg_family += 1
+
+        if methods.get("ela", {}).get("suspicion_score", 0) > self.thresholds["ela"]:
+            manipulation_family += 1
+        if methods.get("noise", {}).get("suspicion_score", 0) > self.thresholds["noise"]:
+            manipulation_family += 1
+        if methods.get("clone_detection", {}).get("suspicion_score", 0) > self.thresholds["clone_detection"]:
+            manipulation_family += 1
+
+        if lsb_family >= 2:
+            critical_flags.append(
+                "High-confidence convergence: multiple independent LSB statistical detectors simultaneously indicate hidden bit-plane disturbance."
+            )
+
+        if jpeg_family >= 2:
+            critical_flags.append(
+                "High-confidence convergence: JPEG recompression and DCT frequency detectors jointly indicate transform-domain embedding artifacts."
+            )
+
+        if manipulation_family >= 2:
+            critical_flags.append(
+                "High-confidence convergence: residual, recompression, and structural manipulation detectors reveal localized forensic inconsistencies."
+            )
+
+        if (
+            methods.get("deep_learning", {}).get("deep_learning_score", 0) > self.thresholds["deep_learning"]
+            and len(findings) >= 3
+        ):
+            critical_flags.append(
+                "Deep-learning agreement: learned residual steganalyzer confirms multiple handcrafted forensic detector anomalies."
+            )
 
         # ---------------------------------------------------------
         # FINAL VERDICT

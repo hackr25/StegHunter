@@ -1,7 +1,8 @@
 """
 Main steganography analysis orchestrator.
-Enhanced Hybrid Version:
-Classical Forensics + Adaptive Statistical Detectors + Deep CNN Steganalyzer + Video Analysis
+FINAL ENTERPRISE HYBRID VERSION:
+Classical Forensics + Adaptive Statistical Detectors + Deep CNN +
+RS/SPA/DCT + Hybrid Heatmap + Reasoning + Hiding Localization + Video Analysis
 """
 from __future__ import annotations
 
@@ -18,6 +19,12 @@ from .statistical_tests import chi_square_test, pixel_value_differencing
 from .reasoning_engine import ReasoningEngine
 from .hiding_location_analyzer import HidingLocationAnalyzer
 from .deep_stego_cnn import DeepStegoAnalyzer
+
+from .rs_analyzer import RSAnalyzer
+from .spa_analyzer import SPAAnalyzer
+from .dct_stego_analyzer import DCTStegoAnalyzer
+from src.forensics.png_chunk_analyzer import PNGChunkAnalyzer
+from .heatmap_generator import HeatmapGenerator
 
 from ..common.constants import DEFAULT_WEIGHTS, SUPPORTED_FORMATS, JPEG_FORMATS
 from ..common.timeout_handler import TimeoutHandler, TimeoutException
@@ -36,11 +43,19 @@ class SteganographyAnalyzer:
     def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         self.supported_formats = SUPPORTED_FORMATS
         self._config = config
+
         self.location_analyzer = HidingLocationAnalyzer()
         self.deep_stego_analyzer = DeepStegoAnalyzer()
+        self.rs_analyzer = RSAnalyzer()
+        self.spa_analyzer = SPAAnalyzer()
+        self.dct_analyzer = DCTStegoAnalyzer()
+        self.png_chunk_analyzer = PNGChunkAnalyzer()
+
+        self.heatmap_generator = HeatmapGenerator()
+        self.reasoning_engine = ReasoningEngine()
 
     # ------------------------------------------------------------------
-    # Public API
+    # BASIC ANALYSIS
     # ------------------------------------------------------------------
 
     def basic_analysis(self, image_path: str) -> Dict[str, Any]:
@@ -67,6 +82,10 @@ class SteganographyAnalyzer:
             "basic_suspicion_score": round(suspicion_score, 2),
         }
 
+    # ------------------------------------------------------------------
+    # IMAGE ANALYSIS
+    # ------------------------------------------------------------------
+
     def analyze_image(self, image_path: str) -> Dict[str, Any]:
         from ..common.image_utils import validate_image_path
         from ..common.exceptions import InvalidImageError
@@ -90,11 +109,15 @@ class SteganographyAnalyzer:
             "analysis_time": 0.0,
             "methods": {},
             "errors": [],
+            "final_suspicion_score": 0.0,
+            "forensic_reasoning": {},
+            "heatmap_analysis": {},
+            "hiding_location": {}
         }
 
         enabled = self._enabled_methods()
-
-        # ----------------------------------------------------------
+        
+                # ----------------------------------------------------------
         # BASIC ANALYSIS
         # ----------------------------------------------------------
         if "basic" in enabled:
@@ -190,11 +213,11 @@ class SteganographyAnalyzer:
                 results["methods"]["social_media"] = SocialMediaDetector().identify(path)
             except Exception as exc:
                 error_msg = f"social_media: {str(exc)}"
-                results["methods"]["social_media"] = {"error": error_msg}
+                results["methods"]["social_media"] = {"error": error_msg, "suspicion_score": 0.0}
                 results["errors"].append(error_msg)
                 logger.warning(f"Method 'social_media' failed: {exc}", exc_info=True)
-                
-                        # ----------------------------------------------------------
+
+        # ----------------------------------------------------------
         # ERROR LEVEL ANALYSIS
         # ----------------------------------------------------------
         if "ela" in enabled:
@@ -258,181 +281,192 @@ class SteganographyAnalyzer:
                 results["methods"]["clone_detection"] = {"error": error_msg, "suspicion_score": 0.0}
                 results["errors"].append(error_msg)
                 logger.warning(f"Method 'clone_detection' failed: {exc}", exc_info=True)
-
-        # ----------------------------------------------------------
-        # DEEP LEARNING CNN STEGANALYSIS
+                
+                # ----------------------------------------------------------
+        # DEEP LEARNING ANALYSIS
         # ----------------------------------------------------------
         if "deep_learning" in enabled:
             try:
                 results["methods"]["deep_learning"] = self.deep_stego_analyzer.analyze(str(path))
             except Exception as exc:
                 error_msg = f"deep_learning: {str(exc)}"
-                results["methods"]["deep_learning"] = {
-                    "error": error_msg,
-                    "deep_learning_score": 0.0,
-                    "deep_learning_confidence": 0.0
-                }
+                results["methods"]["deep_learning"] = {"error": error_msg, "suspicion_score": 0.0}
                 results["errors"].append(error_msg)
                 logger.warning(f"Method 'deep_learning' failed: {exc}", exc_info=True)
 
         # ----------------------------------------------------------
-        # FINAL WEIGHTED SCORING
+        # RS ANALYSIS
         # ----------------------------------------------------------
-        results["final_suspicion_score"] = self._weighted_score(results["methods"])
-        results["analysis_time"] = round(time.time() - start, 3)
-
-        try:
-            results["reasoning"] = ReasoningEngine().generate(results)
-        except Exception as exc:
-            results["reasoning"] = f"Reasoning unavailable: {exc}"
+        if "rs_analysis" in enabled:
+            try:
+                results["methods"]["rs_analysis"] = self.rs_analyzer.analyze(str(path))
+            except Exception as exc:
+                error_msg = f"rs_analysis: {str(exc)}"
+                results["methods"]["rs_analysis"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'rs_analysis' failed: {exc}", exc_info=True)
 
         # ----------------------------------------------------------
-        # HIDING LOCATION ANALYSIS
+        # SPA ANALYSIS
+        # ----------------------------------------------------------
+        if "spa_analysis" in enabled:
+            try:
+                results["methods"]["spa_analysis"] = self.spa_analyzer.analyze(str(path))
+            except Exception as exc:
+                error_msg = f"spa_analysis: {str(exc)}"
+                results["methods"]["spa_analysis"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'spa_analysis' failed: {exc}", exc_info=True)
+
+        # ----------------------------------------------------------
+        # DCT ANALYSIS
+        # ----------------------------------------------------------
+        if "dct_analysis" in enabled and ext in JPEG_FORMATS:
+            try:
+                results["methods"]["dct_analysis"] = self.dct_analyzer.analyze(str(path))
+            except Exception as exc:
+                error_msg = f"dct_analysis: {str(exc)}"
+                results["methods"]["dct_analysis"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'dct_analysis' failed: {exc}", exc_info=True)
+
+        # ----------------------------------------------------------
+        # PNG CHUNK ANALYSIS
+        # ----------------------------------------------------------
+        if "png_chunk" in enabled and ext == ".png":
+            try:
+                results["methods"]["png_chunk"] = self.png_chunk_analyzer.analyze(str(path))
+            except Exception as exc:
+                error_msg = f"png_chunk: {str(exc)}"
+                results["methods"]["png_chunk"] = {"error": error_msg, "suspicion_score": 0.0}
+                results["errors"].append(error_msg)
+                logger.warning(f"Method 'png_chunk' failed: {exc}", exc_info=True)
+
+        # ----------------------------------------------------------
+        # HIDING LOCATION ESTIMATION
         # ----------------------------------------------------------
         try:
             results["hiding_location"] = self.location_analyzer.locate(results)
         except Exception as exc:
-            results["hiding_location"] = {"error": str(exc)}
+            error_msg = f"hiding_location: {str(exc)}"
+            results["hiding_location"] = {"error": error_msg}
+            results["errors"].append(error_msg)
+            logger.warning(f"Hiding location failed: {exc}", exc_info=True)
 
+        # ----------------------------------------------------------
+        # FINAL WEIGHTED SCORE
+        # ----------------------------------------------------------
+        results["final_suspicion_score"] = self._weighted_score(results["methods"])
+
+        if results.get("hiding_location", {}).get("confidence", 0) > 60:
+            results["final_suspicion_score"] = min(100.0, results["final_suspicion_score"] + 3.5)
+
+        # ----------------------------------------------------------
+        # FORENSIC REASONING ENGINE
+        # ----------------------------------------------------------
+        try:
+            results["forensic_reasoning"] = self.reasoning_engine.generate_explanation(results)
+        except Exception as exc:
+            error_msg = f"reasoning_engine: {str(exc)}"
+            results["forensic_reasoning"] = {"error": error_msg}
+            results["errors"].append(error_msg)
+            logger.warning(f"Reasoning engine failed: {exc}", exc_info=True)
+
+        # ----------------------------------------------------------
+        # HYBRID HEATMAP GENERATION
+        # ----------------------------------------------------------
+        try:
+            results["heatmap_analysis"] = self.heatmap_generator.generate_hybrid_heatmap(str(path), results)
+        except Exception as exc:
+            error_msg = f"heatmap_generator: {str(exc)}"
+            results["heatmap_analysis"] = {"error": error_msg}
+            results["errors"].append(error_msg)
+            logger.warning(f"Heatmap generation failed: {exc}", exc_info=True)
+
+        results["analysis_time"] = round(time.time() - start, 3)
         return results
-        # ------------------------------------------------------------------
-    # Internal Helpers
-    # ------------------------------------------------------------------
-
-    def _get_timeout(self) -> int:
-        if self._config is None:
-            return 30
-        timeout = self._config.get("performance", {}).get("timeout_seconds")
-        if timeout is None:
-            return 30
-        return max(1, min(300, int(timeout)))
-
-    def _cfg_int(self, key: str, default: int) -> int:
-        if self._config is None:
-            return default
-        val = self._config.get(key)
-        return int(val) if val is not None else default
 
     # ------------------------------------------------------------------
     # VIDEO ANALYSIS
     # ------------------------------------------------------------------
 
     def analyze_video(self, video_path: str) -> Dict[str, Any]:
-        from pathlib import Path
-        from ..common.exceptions import InvalidImageError
-
         try:
-            path = Path(video_path)
-            if not path.exists():
-                raise InvalidImageError(f"Video file not found: {video_path}")
-        except Exception as e:
-            raise InvalidImageError(f"Failed to load video {video_path}: {e}")
-
-        start = time.time()
-
-        results: dict = {
-            "filename": path.name,
-            "full_path": str(path.resolve()),
-            "file_size": path.stat().st_size,
-            "format": path.suffix.lower(),
-            "frame_count": 0,
-            "analysis_time": 0.0,
-            "methods": {},
-        }
-
-        try:
-            global _video_analyzer
-            if _video_analyzer is None:
-                from src.core.video_analyzer import VideoAnalyzer
-                _video_analyzer = VideoAnalyzer
-            video_analyzer = _video_analyzer()
-            results["methods"]["video_frame_analysis"] = video_analyzer.analyze_video(str(path))
-            results["frame_count"] = results["methods"]["video_frame_analysis"].get("frame_count", 0)
+            from .video_analyzer import VideoStegoAnalyzer
+            analyzer = VideoStegoAnalyzer()
+            return analyzer.analyze(video_path)
         except Exception as exc:
-            results["methods"]["video_frame_analysis"] = {"error": str(exc), "score": 0.0}
-
-        try:
-            global _video_container_analyzer
-            if _video_container_analyzer is None:
-                from src.forensics.video_container_analyzer import VideoContainerAnalyzer
-                _video_container_analyzer = VideoContainerAnalyzer
-            container_analyzer = _video_container_analyzer()
-            results["methods"]["video_container"] = container_analyzer.analyze(str(path))
-        except Exception as exc:
-            results["methods"]["video_container"] = {"error": str(exc), "score": 0.0}
-
-        frame_score = results["methods"].get("video_frame_analysis", {}).get("score", 0.0)
-        container_score = results["methods"].get("video_container", {}).get("score", 0.0)
-
-        results["overall_score"] = round((frame_score * 0.6 + container_score * 0.4), 2)
-        results["is_suspicious"] = results["overall_score"] >= 50.0
-        results["analysis_time"] = round(time.time() - start, 3)
-
-        return results
+            return {
+                "filename": Path(video_path).name,
+                "analysis_type": "video",
+                "error": str(exc),
+                "final_suspicion_score": 0.0
+            }
 
     # ------------------------------------------------------------------
     # ENABLED METHODS
     # ------------------------------------------------------------------
 
-    def _enabled_methods(self) -> list[str]:
-        if self._config is not None:
-            methods = self._config.get("enabled_methods")
-            if methods:
-                return methods
-
+    def _enabled_methods(self):
         return [
             "basic",
             "lsb",
             "chi_square",
             "pixel_differencing",
+            "format_validation",
             "jpeg_structure",
             "metadata",
-            "format_validation",
             "social_media",
             "ela",
             "jpeg_ghost",
             "noise",
             "color_space",
             "clone_detection",
-            "deep_learning"
+            "deep_learning",
+            "rs_analysis",
+            "spa_analysis",
+            "dct_analysis",
+            "png_chunk"
         ]
 
     # ------------------------------------------------------------------
-    # WEIGHTED SCORE FUSION
+    # FINAL WEIGHTED SCORE ENGINE
     # ------------------------------------------------------------------
 
     def _weighted_score(self, methods: Dict[str, Any]) -> float:
-        weights = _DEFAULT_WEIGHTS.copy()
-
-        if self._config is not None:
-            cfg_weights = self._config.get("weights")
-            if cfg_weights:
-                weights.update(cfg_weights)
-
         score_map = {
-            "basic":              methods.get("basic", {}).get("basic_suspicion_score", 0.0),
-            "lsb":                methods.get("lsb", {}).get("lsb_suspicion_score", 0.0),
-            "chi_square":         methods.get("chi_square", {}).get("suspicion_score", 0.0),
-            "pixel_differencing": methods.get("pixel_differencing", {}).get("suspicion_score", 0.0),
-            "jpeg_structure":     methods.get("jpeg_structure", {}).get("suspicion_score", 0.0),
-            "metadata":           methods.get("metadata", {}).get("suspicion_score", 0.0),
-            "format_validation":  methods.get("format_validation", {}).get("suspicion_score", 0.0),
-            "ela":                methods.get("ela", {}).get("suspicion_score", 0.0),
-            "jpeg_ghost":         methods.get("jpeg_ghost", {}).get("suspicion_score", 0.0),
-            "noise":              methods.get("noise", {}).get("suspicion_score", 0.0),
-            "color_space":        methods.get("color_space", {}).get("suspicion_score", 0.0),
-            "clone_detection":    methods.get("clone_detection", {}).get("suspicion_score", 0.0),
-            "deep_learning":      methods.get("deep_learning", {}).get("deep_learning_score", 0.0),
+            "basic": methods.get("basic", {}).get("basic_suspicion_score"),
+            "lsb": methods.get("lsb", {}).get("lsb_suspicion_score"),
+            "chi_square": methods.get("chi_square", {}).get("suspicion_score"),
+            "pixel_differencing": methods.get("pixel_differencing", {}).get("suspicion_score"),
+            "format_validation": methods.get("format_validation", {}).get("suspicion_score"),
+            "jpeg_structure": methods.get("jpeg_structure", {}).get("suspicion_score"),
+            "metadata": methods.get("metadata", {}).get("suspicion_score"),
+            "social_media": methods.get("social_media", {}).get("suspicion_score"),
+            "ela": methods.get("ela", {}).get("suspicion_score"),
+            "jpeg_ghost": methods.get("jpeg_ghost", {}).get("suspicion_score"),
+            "noise": methods.get("noise", {}).get("suspicion_score"),
+            "color_space": methods.get("color_space", {}).get("suspicion_score"),
+            "clone_detection": methods.get("clone_detection", {}).get("suspicion_score"),
+            "deep_learning": methods.get("deep_learning", {}).get("suspicion_score"),
+            "rs_analysis": methods.get("rs_analysis", {}).get("suspicion_score"),
+            "spa_analysis": methods.get("spa_analysis", {}).get("suspicion_score"),
+            "dct_analysis": methods.get("dct_analysis", {}).get("suspicion_score"),
+            "png_chunk": methods.get("png_chunk", {}).get("suspicion_score"),
         }
 
-        total_weight = sum(weights.get(k, 0.0) for k in score_map if k in weights)
+        weighted_total = 0.0
+        weight_sum = 0.0
 
-        if total_weight == 0:
+        for method, score in score_map.items():
+            if score is None:
+                continue
+
+            weight = _DEFAULT_WEIGHTS.get(method, 1.0)
+            weighted_total += float(score) * float(weight)
+            weight_sum += float(weight)
+
+        if weight_sum == 0:
             return 0.0
 
-        final_score = sum(
-            score_map[k] * weights.get(k, 0.0)
-            for k in score_map if k in weights
-        ) / total_weight
-
-        return round(final_score, 2)
+        return round(weighted_total / weight_sum, 2)

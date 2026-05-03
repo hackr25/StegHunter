@@ -367,3 +367,64 @@ class HidingLocationAnalyzer:
         blended = cv2.addWeighted(img_array, 0.5, heatmap_colored, 0.5, 0)
         
         return blended
+    
+    def locate(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
+        methods = analysis_results.get("methods", {})
+        score_sources = []
+
+        def add_source(name, score):
+            if score is not None and score > 20:
+                score_sources.append((name, score))
+
+        add_source("LSB Bit Plane", methods.get("lsb", {}).get("lsb_suspicion_score"))
+        add_source("RS Statistical", methods.get("rs_analysis", {}).get("suspicion_score"))
+        add_source("SPA Transition", methods.get("spa_analysis", {}).get("suspicion_score"))
+        add_source("JPEG DCT Frequency", methods.get("dct_analysis", {}).get("suspicion_score"))
+        add_source("JPEG Ghost Blocks", methods.get("jpeg_ghost", {}).get("suspicion_score"))
+        add_source("ELA Residual Regions", methods.get("ela", {}).get("suspicion_score"))
+        add_source("Residual Noise", methods.get("noise", {}).get("suspicion_score"))
+        add_source("Chromatic Channels", methods.get("color_space", {}).get("suspicion_score"))
+        add_source("Clone Regions", methods.get("clone_detection", {}).get("suspicion_score"))
+        add_source("Deep CNN Learned Residual", methods.get("deep_learning", {}).get("deep_learning_score"))
+
+        if not score_sources:
+            return {
+                "likely_hiding_domain": "No dominant hiding location detected",
+                "primary_indicators": [],
+                "estimated_risk_zones": [],
+                "summary": "No strong localized forensic evidence available."
+            }
+
+        score_sources.sort(key=lambda x: x[1], reverse=True)
+        top_sources = score_sources[:4]
+
+        domain_map = {
+            "LSB Bit Plane": "Spatial least-significant-bit embedding regions",
+            "RS Statistical": "Spatial pixel parity regions",
+            "SPA Transition": "Neighboring grayscale parity regions",
+            "JPEG DCT Frequency": "JPEG transform-domain frequency blocks",
+            "JPEG Ghost Blocks": "Double-compressed block regions",
+            "ELA Residual Regions": "Localized recompression inconsistency areas",
+            "Residual Noise": "High-frequency noise residual zones",
+            "Chromatic Channels": "Cb/Cr chrominance hiding channels",
+            "Clone Regions": "Duplicated local visual descriptors",
+            "Deep CNN Learned Residual": "Learned hidden-artifact residual structures"
+        }
+
+        estimated_risk = [
+            {
+                "indicator": src,
+                "confidence": round(score, 2),
+                "likely_region_type": domain_map.get(src, "Unknown")
+            }
+            for src, score in top_sources
+        ]
+
+        likely_domain = domain_map.get(top_sources[0][0], top_sources[0][0])
+
+        return {
+            "likely_hiding_domain": likely_domain,
+            "primary_indicators": [src for src, _ in top_sources],
+            "estimated_risk_zones": estimated_risk,
+            "summary": f"Hybrid detector fusion suggests strongest hidden-content likelihood in: {likely_domain}."
+        }
