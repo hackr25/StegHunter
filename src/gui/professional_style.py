@@ -206,6 +206,13 @@ QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus {{
     background-color: {colors['bg_secondary']};
 }}
 
+/* Ensure read-only text edits also follow theme */
+QTextEdit:read-only, QPlainTextEdit:read-only {{
+    background-color: {colors['bg_secondary']};
+    color: {colors['text_primary']};
+    border: 1px solid {colors['border']};
+}}
+
 /* Combo Boxes */
 QComboBox {{
     background-color: {colors['bg_secondary']};

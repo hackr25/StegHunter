@@ -208,8 +208,20 @@ class MLSteganalysisClassifier:
         model_data = joblib.load(model_path)
         self.model = model_data['model']
         self.scaler = model_data['scaler']
-        self.feature_names = model_data['feature_names']
-        self.feature_extractor = model_data['feature_extractor']
+        
+        # Handle old models that don't have feature_names
+        if 'feature_names' in model_data:
+            self.feature_names = model_data['feature_names']
+        else:
+            self.feature_names = self.feature_extractor.get_feature_names()
+        
+        # Handle old models that don't have feature_extractor
+        if 'feature_extractor' in model_data:
+            self.feature_extractor = model_data['feature_extractor']
+        else:
+            # Create a new feature extractor (will work but may have different feature order)
+            self.feature_extractor = MLFeatureExtractor()
+        
         self.model_path = model_path
         print(f"Model loaded from {model_path}")
     
