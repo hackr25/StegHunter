@@ -23,12 +23,22 @@ A professional-grade, multi-layered forensic tool for detecting hidden data in *
 - **ORB-based detection** — Oriented FAST and Rotated BRIEF keypoint matching
 - **Copy-move forgery** — identify duplicated/cloned regions
 
-### Phase 4: Video Forensics ⭐ NEW
-- **Frame extraction** — per-frame LSB entropy analysis via FFmpeg
-- **Temporal anomaly detection** — Z-score based frame-by-frame analysis
+### Phase 4: Video Forensics ⭐ ENHANCED
+- **Frame extraction** — per-frame analysis via FFmpeg
+- **Comprehensive technique application** — applies ALL image analysis methods per frame:
+  - LSB entropy analysis
+  - Error Level Analysis (ELA)
+  - JPEG Ghost artifacts detection
+  - Noise pattern analysis
+  - Color space distribution analysis
+  - Chi-square statistical tests
+  - Pixel value differencing
+- **Temporal anomaly detection** — Z-score based frame-by-frame analysis for each technique
+- **Per-technique timelines** — tracks suspicion scores across video for each detection method
+- **Aggregated scoring** — combines all per-frame technique scores into single overall suspicion metric
 - **Container analysis** — MP4/MKV format parsing and structural validation
 - **Entropy heatmap** — visualize suspicion levels across video timeline
-- **Multi-format support** — MP4, MKV, AVI, MOV, WebM, etc.
+- **Multi-format support** — MP4, MKV, AVI, MOV, WebM, FLV, WMV
 
 ### Phase 5: Machine Learning & GUI ⭐ ENHANCED
 - **Multi-model ML detection** — 4 independent classifiers:
@@ -141,27 +151,36 @@ python steg_hunter_gui.py
 
 Open an image or video → select a detection method (Heuristic / ML) → click **Analyze** → view results and heatmap.
 
-#### GUI Video Analysis (NEW!) ⭐
+#### GUI Video Analysis (NEW!) ⭐ ENHANCED
 
-The GUI now supports **full video forensics analysis**:
+The GUI now supports **comprehensive video forensics analysis** with ALL detection techniques:
 
 1. Launch GUI: `python steg_hunter_gui.py`
 2. Click **"Open Image/Video File"**
 3. Select a video: MP4, AVI, MKV, MOV, WebM, FLV, WMV
-4. Click **"Analyze"** to run video forensics
-5. View results:
-   - Overall suspicion score (0-100)
-   - LSB entropy timeline per frame
-   - Temporal anomalies detected
-   - Frame-by-frame breakdown
-   - Risk level assessment with color coding
+4. Click **"Analyze"** to run comprehensive video forensics
+5. View professional results:
+   - Overall suspicion score (0-100) with risk level
+   - Per-technique breakdown (LSB, ELA, JPEG Ghost, Noise, Color Space, Chi-Square, Pixel Differencing)
+   - Temporal anomalies per technique with Z-score analysis
+   - Frame-by-frame average scores for all methods
+   - Technique statistics (avg/max/detection count)
 
 **Video Analysis Features:**
-- Frame extraction with adjustable sampling rate
-- Per-frame LSB entropy analysis
-- Temporal anomaly detection (Z-score based)
+- Frame extraction with adjustable sampling rate (default: every 5th frame)
+- Per-frame comprehensive technique analysis:
+  - LSB entropy analysis with chi-square uniformity
+  - Error Level Analysis (ELA) for recompression detection
+  - JPEG Ghost artifacts detection
+  - Noise pattern analysis (artificial high-frequency detection)
+  - Color space distribution anomalies (YCbCr analysis)
+  - Chi-square statistical tests
+  - Pixel value differencing
+- Per-technique temporal anomaly detection (Z-score = 2.0 threshold)
+- Technique timeline visualization
 - Container format validation
 - Professional forensic reporting
+- Multi-threaded analysis for responsive UI
 
 ### Evaluate model
 
