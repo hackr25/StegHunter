@@ -18,7 +18,14 @@ from .lsb_analyzer import lsb_analysis
 from .statistical_tests import chi_square_test, pixel_value_differencing
 from .reasoning_engine import ReasoningEngine
 from .hiding_location_analyzer import HidingLocationAnalyzer
-from .deep_stego_cnn import DeepStegoAnalyzer
+
+try:
+    from .deep_stego_cnn import DeepStegoAnalyzer
+    TF_DEEP_AVAILABLE = True
+except Exception as e:
+    print(f"[WARNING] TensorFlow Deep CNN unavailable: {e}")
+    DeepStegoAnalyzer = None
+    TF_DEEP_AVAILABLE = False
 
 from .rs_analyzer import RSAnalyzer
 from .spa_analyzer import SPAAnalyzer
@@ -45,7 +52,16 @@ class SteganographyAnalyzer:
         self._config = config
 
         self.location_analyzer = HidingLocationAnalyzer()
-        self.deep_stego_analyzer = DeepStegoAnalyzer()
+
+        self.deep_stego_analyzer = None
+        if TF_DEEP_AVAILABLE:
+            try:
+                self.deep_stego_analyzer = DeepStegoAnalyzer()
+                print("[INFO] Deep CNN TensorFlow detector loaded successfully.")
+            except Exception as e:
+                print(f"[WARNING] Deep CNN initialization failed: {e}")
+                self.deep_stego_analyzer = None
+
         self.rs_analyzer = RSAnalyzer()
         self.spa_analyzer = SPAAnalyzer()
         self.dct_analyzer = DCTStegoAnalyzer()
@@ -61,7 +77,8 @@ class SteganographyAnalyzer:
     def basic_analysis(self, image_path: str) -> Dict[str, Any]:
         start = time.time()
         path = Path(image_path)
-        image = Image.open(path)
+        with Image.open(path) as img:
+            image = img.copy()
 
         file_size = path.stat().st_size
         dimensions = (image.width, image.height)
@@ -92,7 +109,8 @@ class SteganographyAnalyzer:
 
         try:
             path = validate_image_path(image_path)
-            image = Image.open(path)
+            with Image.open(path) as img:
+                image = img.copy()
         except Exception as e:
             raise InvalidImageError(f"Failed to load image {image_path}: {e}")
 
@@ -286,13 +304,23 @@ class SteganographyAnalyzer:
         # DEEP LEARNING ANALYSIS
         # ----------------------------------------------------------
         if "deep_learning" in enabled:
-            try:
-                results["methods"]["deep_learning"] = self.deep_stego_analyzer.analyze(str(path))
-            except Exception as exc:
-                error_msg = f"deep_learning: {str(exc)}"
-                results["methods"]["deep_learning"] = {"error": error_msg, "suspicion_score": 0.0}
-                results["errors"].append(error_msg)
-                logger.warning(f"Method 'deep_learning' failed: {exc}", exc_info=True)
+            if self.deep_stego_analyzer is not None:
+                try:
+                    results["methods"]["deep_learning"] = self.deep_stego_analyzer.analyze(str(path))
+                except Exception as exc:
+                    error_msg = f"deep_learning: {str(exc)}"
+                    results["methods"]["deep_learning"] = {
+                        "error": error_msg,
+                        "suspicion_score": 0.0,
+                        "status": "runtime_failed"
+                    }
+                    results["errors"].append(error_msg)
+                    logger.warning(f"Method 'deep_learning' failed: {exc}", exc_info=True)
+            else:
+                results["methods"]["deep_learning"] = {
+                    "suspicion_score": 0.0,
+                    "status": "tensorflow_unavailable"
+            }
 
         # ----------------------------------------------------------
         # RS ANALYSIS
@@ -428,12 +456,41 @@ class SteganographyAnalyzer:
             "dct_analysis",
             "png_chunk"
         ]
+        
+    def _safe_numeric(self, value, default=0.0):
+        """
+        Convert detector outputs safely into valid finite float.
+        Prevents NaN / Inf poisoning of final score.
+        """
+        import math
+        import numpy as np
+
+        try:
+            if value is None:
+                return default
+
+            if isinstance(value, np.generic):
+                value = float(value)
+
+            value = float(value)
+
+            if math.isnan(value) or math.isinf(value):
+                return default
+
+            return value
+
+        except Exception:
+            return default
 
     # ------------------------------------------------------------------
     # FINAL WEIGHTED SCORE ENGINE
     # ------------------------------------------------------------------
 
     def _weighted_score(self, methods: Dict[str, Any]) -> float:
+        """
+        Enterprise weighted fusion engine with NaN/Inf immunity.
+        """
+
         score_map = {
             "basic": methods.get("basic", {}).get("basic_suspicion_score"),
             "lsb": methods.get("lsb", {}).get("lsb_suspicion_score"),
@@ -458,15 +515,23 @@ class SteganographyAnalyzer:
         weighted_total = 0.0
         weight_sum = 0.0
 
-        for method, score in score_map.items():
+        for method, raw_score in score_map.items():
+            score = self._safe_numeric(raw_score, default=None)
+
             if score is None:
                 continue
 
-            weight = _DEFAULT_WEIGHTS.get(method, 1.0)
-            weighted_total += float(score) * float(weight)
-            weight_sum += float(weight)
+            weight = self._safe_numeric(_DEFAULT_WEIGHTS.get(method, 1.0), default=1.0)
 
-        if weight_sum == 0:
+            weighted_total += score * weight
+            weight_sum += weight
+
+        if weight_sum <= 0:
             return 0.0
 
-        return round(weighted_total / weight_sum, 2)
+        final_score = weighted_total / weight_sum
+        final_score = self._safe_numeric(final_score, default=0.0)
+
+        final_score = max(0.0, min(100.0, final_score))
+
+        return round(final_score, 2)

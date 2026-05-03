@@ -280,6 +280,40 @@ class HeatmapGenerator:
             cv2.imwrite(output_path, ela_colored)
 
         return ela_colored
+    
+    def ela_score(self, image_path: str, quality: int = 90) -> dict:
+        """
+        Compute numerical ELA forensic statistics safely.
+        Returns detector-friendly scalar values for GUI and analyzer use.
+        """
+        try:
+            ela_map = self.generate_ela_heatmap(image_path)
+
+            import numpy as np
+
+            mean_val = float(np.mean(ela_map))
+            std_val = float(np.std(ela_map))
+            max_val = float(np.max(ela_map))
+
+            suspicion = ((mean_val * 0.5) + (std_val * 0.3) + (max_val * 0.2)) * 100
+            suspicion = max(0.0, min(100.0, suspicion))
+
+            return {
+                "suspicion_score": suspicion,
+                "ela_mean": round(mean_val, 5),
+                "ela_std": round(std_val, 5),
+                "ela_max": round(max_val, 5),
+                "quality_used": quality
+            }
+
+        except Exception as e:
+            return {
+                "suspicion_score": 0.0,
+                "ela_mean": 0.0,
+                "ela_std": 0.0,
+                "ela_max": 0.0,
+                "error": str(e)
+            }
 
     # =========================================================
     # NOISE HEATMAP
@@ -451,7 +485,7 @@ class HeatmapGenerator:
 
         return dct_colored
     
-        # =========================================================
+    # =========================================================
     # SAVE / DISPLAY UTILITIES
     # =========================================================
     def save_heatmap(self, heatmap: np.ndarray, output_path: str):

@@ -72,14 +72,41 @@ class SteganographyAnalyzerWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.init_ui()
+
+        # --------------------------------------------
+        # CORE STATE VARIABLES FIRST
+        # --------------------------------------------
         self.current_image_path = None
         self.current_image = None
         self.analysis_results = None
-        
-        # Core components
+        self.last_heatmap_path = None
+        self.last_generated_heatmap = None
+
+        # Pre-create placeholders for all tab widgets
+        self.summary_tab = None
+        self.details_tab = None
+        self.heatmap_tab = None
+        self.methods_tab = None
+        self.reasoning_tab = None
+        self.payload_region_tab = None
+        self.ela_tab = None
+        self.file_info_tab = None
+        self.metadata_tab = None
+        self.noise_tab = None
+        self.color_tab = None
+        self.ghost_tab = None
+        self.clone_tab = None
+
+        # --------------------------------------------
+        # BACKEND ANALYZER LOAD
+        # --------------------------------------------
         from src.core.analyzer import SteganographyAnalyzer
         self.analyzer = SteganographyAnalyzer()
+
+        # --------------------------------------------
+        # BUILD UI LAST
+        # --------------------------------------------
+        self.init_ui()
         
     def init_ui(self):
         """Initialize the user interface"""
@@ -328,7 +355,7 @@ class MainWindow(QMainWindow):
         self.results_tab.addTab(self.heatmap_tab, "Heatmap")
         
         # Methods tab
-        self.create_methods_tab()
+        self.methods_tab = self.create_methods_tab()
         self.results_tab.addTab(self.methods_tab, "Methods")
         
         layout.addWidget(self.results_tab)
