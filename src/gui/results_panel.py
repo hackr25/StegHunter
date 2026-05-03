@@ -23,7 +23,6 @@ class ResultsPanel(QtWidgets.QWidget):
             color: #888; 
             padding: 10px;
             border-radius: 5px;
-            background-color: #f0f0f0;
         """)
         layout.addWidget(self.verdict_label)
 
@@ -50,13 +49,13 @@ class ResultsPanel(QtWidgets.QWidget):
         self.findings_box = QtWidgets.QTextEdit()
         self.findings_box.setReadOnly(True)
         self.findings_box.setPlaceholderText("Detailed forensic markers will appear here...")
-        self.findings_box.setStyleSheet("background-color: #fafafa; border: 1px solid #ddd; font-family: Consolas, Monaco, monospace;")
+        self.findings_box.setStyleSheet("font-family: Consolas, Monaco, monospace; border: 1px solid;")
         layout.addWidget(self.findings_box)
 
         # --- 4. Summary Footer ---
         self.summary_label = QtWidgets.QLabel("Ready to analyze image.")
         self.summary_label.setWordWrap(True)
-        self.summary_label.setStyleSheet("font-style: italic; color: #666;")
+        self.summary_label.setStyleSheet("font-style: italic;")
         layout.addWidget(self.summary_label)
 
     def update_results(self, results: dict):
