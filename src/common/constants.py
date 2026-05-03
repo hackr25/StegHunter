@@ -1,66 +1,76 @@
 """
-Constants and default configurations for StegHunter.
+Global constants for StegHunter.
+Enhanced Hybrid Detection Version
 """
 
-# Supported image formats
-SUPPORTED_FORMATS = frozenset({'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'})
-JPEG_FORMATS = frozenset({'.jpg', '.jpeg'})
+# ---------------------------------------------------------
+# SUPPORTED IMAGE FORMATS
+# ---------------------------------------------------------
 
-# Default method weights (must sum to 1.0)
+SUPPORTED_FORMATS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".webp"
+}
+
+JPEG_FORMATS = {
+    ".jpg",
+    ".jpeg"
+}
+
+VIDEO_FORMATS = {
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".mkv",
+    ".wmv",
+    ".flv",
+    ".webm"
+}
+
+# ---------------------------------------------------------
+# DEFAULT HYBRID DETECTOR WEIGHTS
+# Must approximately sum near 1.0 (normalization also exists)
+# ---------------------------------------------------------
+
 DEFAULT_WEIGHTS = {
-    "basic": 0.05,
-    "lsb": 0.25,
-    "chi_square": 0.10,
-    "pixel_differencing": 0.05,
-    "jpeg_structure": 0.10,
+    "basic": 0.04,
+    "lsb": 0.09,
+    "chi_square": 0.07,
+    "pixel_differencing": 0.07,
+    "jpeg_structure": 0.08,
     "metadata": 0.05,
-    "format_validation": 0.10,
-    "ela": 0.20,
-    "jpeg_ghost": 0.10,
-    "noise": 0.10,
-    "color_space": 0.10,
-    "clone_detection": 0.15,
+    "format_validation": 0.05,
+    "ela": 0.15,
+    "jpeg_ghost": 0.08,
+    "noise": 0.08,
+    "color_space": 0.08,
+    "clone_detection": 0.08,
+    "deep_learning": 0.16
 }
 
-# Default configuration
-DEFAULT_CONFIG = {
-    "suspicion_threshold": 50.0,
-    "weights": DEFAULT_WEIGHTS,
-    "enabled_methods": [
-        "basic",
-        "lsb",
-        "chi_square",
-        "pixel_differencing",
-        "ela",
-        "jpeg_ghost",
-        "clone_detection",
-        "noise",
-        "metadata",
-        "jpeg_structure",
-        "format_validation",
-    ],
-    "output": {
-        "default_format": "json",
-        "include_detailed": False,
-        "save_ela_heatmap": False,
-        "save_ghost_map": False,
-    },
-    "performance": {
-        "max_workers": 4,
-        "chunk_size": 10,
-        "ela_quality": 95,
-        "ela_scale": 10,
-        "clone_block_size": 16,
-        "noise_block_size": 32,
-    },
-    "video": {
-        "frame_sample_rate": 10,
-        "duplicate_threshold": 0.98,
-        "diff_spike_multiplier": 3.0,
-    },
-}
+# ---------------------------------------------------------
+# GLOBAL DECISION THRESHOLDS
+# ---------------------------------------------------------
 
-# Suspicion threshold constants
-THRESHOLD_LOW = 25.0
-THRESHOLD_MEDIUM = 50.0
-THRESHOLD_HIGH = 75.0
+DEFAULT_SUSPICION_THRESHOLD = 50.0
+HIGH_RISK_THRESHOLD = 75.0
+LOW_RISK_THRESHOLD = 25.0
+
+# ---------------------------------------------------------
+# PERFORMANCE DEFAULTS
+# ---------------------------------------------------------
+
+DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_ELA_QUALITY = 95
+DEFAULT_ELA_SCALE = 10
+
+# ---------------------------------------------------------
+# VERSION INFO
+# ---------------------------------------------------------
+
+ENGINE_VERSION = "2.5 Hybrid Deep Forensics"

@@ -1,94 +1,167 @@
-from typing import List, Dict, Any
+from typing import Dict, Any, List
+
 
 class ReasoningEngine:
     """
-    Translates mathematical suspicion scores into human-readable 
-    forensic explanations.
+    Advanced Hybrid Forensic Reasoning Engine.
+    Converts multi-detector numerical evidence into human-readable
+    forensic conclusions with confidence-aware interpretation.
     """
+
     def __init__(self):
-        # Define thresholds for what constitutes "significant" findings
         self.thresholds = {
-            "lsb": 40.0,
-            "chi_square": 30.0,
-            "pixel_differencing": 30.0,
+            "lsb": 45.0,
+            "chi_square": 35.0,
+            "pixel_differencing": 35.0,
             "ela": 40.0,
-            "jpeg_ghost": 30.0,
-            "noise": 30.0,
-            "color_space": 30.0,
-            "metadata": 20.0
+            "jpeg_ghost": 35.0,
+            "noise": 35.0,
+            "color_space": 35.0,
+            "metadata": 20.0,
+            "clone_detection": 30.0,
+            "deep_learning": 50.0
         }
 
     def generate_explanation(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Analyzes the results dict and generates a detailed reasoning report.
-        """
         methods = results.get("methods", {})
-        findings = []
-        critical_flags = []
+        findings: List[str] = []
+        critical_flags: List[str] = []
 
-        # 1. LSB Analysis Reasoning
+        # ---------------------------------------------------------
+        # LSB FORENSICS
+        # ---------------------------------------------------------
         if "lsb" in methods:
-            lsb = methods["lsb"]
-            if lsb.get("lsb_uniformity_reject"):
-                findings.append("❌ LSB Uniformity Test failed: The distribution of least-significant bits is too uniform, which is a strong indicator of encrypted data insertion.")
-            if lsb.get("entropy", 0) > 0.9:
-                findings.append(f"⚠️ High LSB Entropy ({lsb.get('entropy', 0):.2f}): The randomness of the lowest bit plane is abnormally high.")
+            lsb_score = methods["lsb"].get("lsb_suspicion_score", 0)
+            if lsb_score > self.thresholds["lsb"]:
+                findings.append(
+                    f"❌ LSB forensic anomaly detected ({lsb_score:.2f}%): "
+                    f"least-significant bit randomness, spatial correlation disruption, and bit-plane balance suggest hidden payload insertion."
+                )
 
-        # 2. ELA Reasoning
+        # ---------------------------------------------------------
+        # CHI SQUARE / STATISTICAL
+        # ---------------------------------------------------------
+        if "chi_square" in methods:
+            score = methods["chi_square"].get("suspicion_score", 0)
+            if score > self.thresholds["chi_square"]:
+                findings.append(
+                    f"⚠️ Histogram pair-frequency irregularity observed ({score:.2f}%): "
+                    f"grayscale statistical consistency deviates from natural image behavior."
+                )
+
+        if "pixel_differencing" in methods:
+            score = methods["pixel_differencing"].get("suspicion_score", 0)
+            if score > self.thresholds["pixel_differencing"]:
+                findings.append(
+                    f"⚠️ Residual pixel differencing anomaly ({score:.2f}%): "
+                    f"adjacent pixel transition smoothness is disrupted beyond normal expectations."
+                )
+
+        # ---------------------------------------------------------
+        # ELA
+        # ---------------------------------------------------------
         if "ela" in methods:
-            ela_score = methods["ela"].get("suspicion_score", 0)
-            if ela_score > self.thresholds["ela"]:
-                findings.append(f"❌ Error Level Analysis (ELA) flagged anomalies: Localized areas of the image show inconsistent compression levels, suggesting the image was modified after the original save.")
+            score = methods["ela"].get("suspicion_score", 0)
+            if score > self.thresholds["ela"]:
+                findings.append(
+                    f"❌ Error Level Analysis inconsistency ({score:.2f}%): "
+                    f"localized recompression signatures indicate possible manipulated or embedded regions."
+                )
 
-        # 3. JPEG Ghost Reasoning
+        # ---------------------------------------------------------
+        # JPEG GHOST
+        # ---------------------------------------------------------
         if "jpeg_ghost" in methods:
-            ghost_score = methods["jpeg_ghost"].get("suspicion_score", 0)
-            if ghost_score > self.thresholds["jpeg_ghost"]:
-                findings.append("❌ JPEG Ghost detected: The image shows evidence of double-compression with different quality factors, a common artifact of steganographic embedding.")
+            score = methods["jpeg_ghost"].get("suspicion_score", 0)
+            if score > self.thresholds["jpeg_ghost"]:
+                findings.append(
+                    f"⚠️ JPEG recompression ghost evidence ({score:.2f}%): "
+                    f"double-compression irregularities detected across spatial blocks."
+                )
 
-        # 4. Color Space Reasoning
-        if "color_space" in methods:
-            cs_score = methods["color_space"].get("suspicion_score", 0)
-            if cs_score > self.thresholds["color_space"]:
-                findings.append("⚠️ Chrominance Anomaly: Unusual entropy detected in the Cb/Cr channels. Data is often hidden here as the human eye is less sensitive to color shifts.")
-
-        # 5. Noise Reasoning
+        # ---------------------------------------------------------
+        # NOISE
+        # ---------------------------------------------------------
         if "noise" in methods:
-            noise_score = methods["noise"].get("suspicion_score", 0)
-            if noise_score > self.thresholds["noise"]:
-                findings.append("⚠️ High-Frequency Noise: The Laplacian variance is higher than expected for a natural image, suggesting artificial noise injection.")
+            score = methods["noise"].get("suspicion_score", 0)
+            if score > self.thresholds["noise"]:
+                findings.append(
+                    f"⚠️ Residual noise inconsistency ({score:.2f}%): "
+                    f"high-frequency residual entropy and local noise patterns appear artificially disturbed."
+                )
 
-        # 6. Metadata Reasoning
+        # ---------------------------------------------------------
+        # COLOR SPACE
+        # ---------------------------------------------------------
+        if "color_space" in methods:
+            score = methods["color_space"].get("suspicion_score", 0)
+            if score > self.thresholds["color_space"]:
+                findings.append(
+                    f"⚠️ Chromatic embedding anomaly ({score:.2f}%): "
+                    f"YCbCr entropy, luminance correlation, and saturation consistency indicate unnatural chrominance modification."
+                )
+
+        # ---------------------------------------------------------
+        # METADATA
+        # ---------------------------------------------------------
         if "metadata" in methods:
-            meta_score = methods["metadata"].get("suspicion_score", 0)
-            if meta_score > self.thresholds["metadata"]:
-                findings.append("ℹ️ Metadata Irregularity: The image contains suspicious or stripped EXIF data, often seen in tools that cleanse footprints.")
-        
-        # 7. Clone Detection Reasoning
+            score = methods["metadata"].get("suspicion_score", 0)
+            if score > self.thresholds["metadata"]:
+                findings.append(
+                    f"ℹ️ Metadata irregularity ({score:.2f}%): "
+                    f"EXIF/metadata structure suggests prior editing, stripping, or processing."
+                )
+
+        # ---------------------------------------------------------
+        # CLONE DETECTION
+        # ---------------------------------------------------------
         if "clone_detection" in methods:
-            clone_score = methods["clone_detection"].get("suspicion_score", 0)
-            if clone_score > 30.0:
-                findings.append("❌ Clone Detection flagged: Identical pixel patterns found in different areas of the image. This is a strong indicator of Copy-Move forgery (cloning).")
+            score = methods["clone_detection"].get("suspicion_score", 0)
+            if score > self.thresholds["clone_detection"]:
+                findings.append(
+                    f"❌ Clone-pattern similarity detected ({score:.2f}%): "
+                    f"duplicated visual descriptors suggest copy-move style localized manipulation."
+                )
 
+        # ---------------------------------------------------------
+        # DEEP CNN LEARNING
+        # ---------------------------------------------------------
+        if "deep_learning" in methods:
+            dl_score = methods["deep_learning"].get("deep_learning_score", 0)
+            dl_conf = methods["deep_learning"].get("deep_learning_confidence", 0)
 
-        # --- Final Verdict Logic ---
+            if dl_score > self.thresholds["deep_learning"]:
+                findings.append(
+                    f"🚨 Deep CNN steganalyzer flagged embedded artifact probability ({dl_score:.2f}%) "
+                    f"with confidence {dl_conf:.2f}%. Learned residual signatures are consistent with hidden-data embedding."
+                )
+
+        # ---------------------------------------------------------
+        # FINAL VERDICT
+        # ---------------------------------------------------------
         final_score = results.get("final_suspicion_score", 0)
-        verdict = "Clean"
-        if final_score > 70:
+
+        if final_score >= 80:
             verdict = "Highly Suspicious"
-            critical_flags.append("Critical: Multiple high-confidence indicators present.")
-        elif final_score > 40:
+            critical_flags.append("Critical: Multiple independent forensic detectors strongly converge toward hidden-content likelihood.")
+        elif final_score >= 60:
             verdict = "Suspicious"
-            critical_flags.append("Warning: Minor anomalies detected; further manual inspection required.")
-        elif final_score > 15:
+            critical_flags.append("Warning: Several medium-to-high confidence anomalies detected across detector families.")
+        elif final_score >= 35:
+            verdict = "Moderate Suspicion"
+            critical_flags.append("Notice: Some weak forensic inconsistencies present; manual verification recommended.")
+        elif final_score >= 15:
             verdict = "Low Suspicion"
         else:
-            findings.append("✅ No significant steganographic markers detected.")
+            verdict = "Clean"
+
+        if not findings:
+            findings.append("✅ No major forensic anomalies detected across hybrid detector ensemble.")
 
         return {
             "verdict": verdict,
-            "final_score": final_score,
+            "final_score": round(final_score, 2),
             "detailed_findings": findings,
             "critical_alerts": critical_flags,
-            "summary": f"Analysis complete. Verdict: {verdict} ({final_score}%). Found {len(findings)} relevant markers."
+            "summary": f"Hybrid forensic analysis complete. Verdict: {verdict} ({final_score:.2f}%). Detected {len(findings)} notable forensic indicators."
         }
