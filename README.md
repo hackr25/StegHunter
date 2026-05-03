@@ -47,6 +47,10 @@ A professional-grade, multi-layered forensic tool for detecting hidden data in *
   - Forensic conclusion certificate
   - **PAGE 5 NEW: Recommendations & action items with risk-level color coding**
 - **PyQt5 GUI** — desktop interface with live analysis, results, and batch processing
+  - **🎬 NEW: Full video analysis support** (MP4, AVI, MKV, MOV, WebM, FLV, WMV)
+  - Per-frame LSB entropy analysis
+  - Temporal anomaly detection with visualization
+  - Professional video forensics reports
 - **Full CLI** — Click-based command-line interface with all features
 
 ### Additional Capabilities
@@ -135,7 +139,29 @@ python steg_hunter_cli.py export path/to/image.png --output results.json --forma
 python steg_hunter_gui.py
 ```
 
-Open an image → select a detection method (Heuristic / ML) → click **Analyze** → view results and heatmap.
+Open an image or video → select a detection method (Heuristic / ML) → click **Analyze** → view results and heatmap.
+
+#### GUI Video Analysis (NEW!) ⭐
+
+The GUI now supports **full video forensics analysis**:
+
+1. Launch GUI: `python steg_hunter_gui.py`
+2. Click **"Open Image/Video File"**
+3. Select a video: MP4, AVI, MKV, MOV, WebM, FLV, WMV
+4. Click **"Analyze"** to run video forensics
+5. View results:
+   - Overall suspicion score (0-100)
+   - LSB entropy timeline per frame
+   - Temporal anomalies detected
+   - Frame-by-frame breakdown
+   - Risk level assessment with color coding
+
+**Video Analysis Features:**
+- Frame extraction with adjustable sampling rate
+- Per-frame LSB entropy analysis
+- Temporal anomaly detection (Z-score based)
+- Container format validation
+- Professional forensic reporting
 
 ### Evaluate model
 
