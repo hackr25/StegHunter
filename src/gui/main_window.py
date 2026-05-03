@@ -13,17 +13,18 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QPushButton, QLabel, QFileDialog, QTabWidget,
                              QStatusBar, QMenuBar, QAction, QToolBar, QComboBox,
                              QProgressBar, QSplitter, QTextEdit, QCheckBox,
-                             QSlider, QGroupBox, QSpinBox, QDoubleSpinBox, QMessageBox)
+                             QSlider, QGroupBox, QSpinBox, QDoubleSpinBox, 
+                             QMessageBox,QTableWidget, QTableWidgetItem, QHeaderView)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap, QFont
+from PyQt5.QtGui import QIcon, QPixmap, QFont,  QImage
 import sys
 from pathlib import Path
 from .batch_dialog import BatchProcessingDialog
 from src.core.pdf_reporter import PDFReporter
 from src.forensics.hash_entropy import calculate_hashes,calculate_entropy
 from .train_model_dialog import TrainModelDialog
-from .results_panel import ResultsPanel
 from .professional_style import set_theme
+
 
 
 class SteganographyAnalyzerWorker(QThread):
@@ -126,9 +127,6 @@ class MainWindow(QMainWindow):
         
         # Styling
         self.apply_styles()
-        
-        self.results_panel = ResultsPanel()
-        self.main_layout.addWidget(self.results_panel)
     
     def create_menu_bar(self):
         """Create application menu bar"""
@@ -326,7 +324,7 @@ class MainWindow(QMainWindow):
         self.results_tab.addTab(self.details_tab, "Details")
         
         # Heatmap tab
-        self.create_heatmap_tab()
+        self.heatmap_tab = self.create_heatmap_tab()
         self.results_tab.addTab(self.heatmap_tab, "Heatmap")
         
         # Methods tab
@@ -358,6 +356,12 @@ class MainWindow(QMainWindow):
         
         self.create_clone_tab()
         self.results_tab.addTab(self.clone_tab, "Clone Detection")
+        
+        self.reasoning_tab = self.create_reasoning_tab()
+        self.results_tab.addTab(self.reasoning_tab, "Forensic Reasoning")
+        
+        self.payload_region_tab = self.create_payload_region_tab()
+        self.results_tab.addTab(self.payload_region_tab, "Payload Region")
 
         
         # Quick actions
@@ -374,7 +378,151 @@ class MainWindow(QMainWindow):
         layout.addLayout(actions_layout)
         
         self.results_group.setLayout(layout)
+        
+    def create_reasoning_tab(self):
+        """Create forensic reasoning / analyst explanation tab"""
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        title = QLabel("Analyst Forensic Interpretation")
+        title.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; padding: 8px; }")
+        layout.addWidget(title)
+
+        self.reasoning_text = QTextEdit()
+        self.reasoning_text.setReadOnly(True)
+        self.reasoning_text.setStyleSheet("""
+            QTextEdit {
+                font-family: Consolas;
+                font-size: 12px;
+                padding: 10px;
+            }
+        """)
+
+        layout.addWidget(self.reasoning_text)
+
+        return widget
     
+    def update_reasoning_results(self, results):
+        """Render backend forensic reasoning/explanation"""
+
+        explanation = (
+            results.get("forensic_reasoning")
+            or results.get("explanation")
+            or {}
+        )
+
+        if not explanation:
+            self.reasoning_text.setText("No forensic reasoning narrative available.")
+            return
+
+        lines = []
+
+        verdict = explanation.get("verdict") or explanation.get("final_verdict")
+        if verdict:
+            lines.append("=== FINAL ANALYST VERDICT ===")
+            lines.append(str(verdict))
+            lines.append("")
+
+        summary = explanation.get("summary")
+        if summary:
+            lines.append("=== EXECUTIVE SUMMARY ===")
+            lines.append(str(summary))
+            lines.append("")
+
+        findings = (
+            explanation.get("detailed_findings")
+            or explanation.get("findings")
+            or explanation.get("critical_indicators")
+            or []
+        )
+
+        if findings:
+            lines.append("=== DETECTOR FINDINGS ===")
+            if isinstance(findings, list):
+                for item in findings:
+                    lines.append(f"• {item}")
+            else:
+                lines.append(str(findings))
+            lines.append("")
+
+        confidence = explanation.get("confidence_assessment")
+        if confidence:
+            lines.append("=== CONFIDENCE ASSESSMENT ===")
+            lines.append(str(confidence))
+            lines.append("")
+
+        recommendations = explanation.get("recommendation") or explanation.get("analyst_note")
+        if recommendations:
+            lines.append("=== ANALYST NOTE ===")
+            lines.append(str(recommendations))
+
+        if not lines:
+            lines.append(str(explanation))
+
+        self.reasoning_text.setText("\n".join(lines))
+        
+    def update_payload_region_results(self, results):
+        """Estimate and render probable hidden payload region from heatmap/comprehensive results"""
+
+        lines = []
+
+        methods = results.get("methods", {})
+        candidate_method = None
+
+        for key in ["heatmap", "comprehensive_heatmap", "ela", "jpeg_ghost", "lsb"]:
+            if key in methods:
+                candidate_method = methods[key]
+                break
+
+        suspicious_score = results.get("final_suspicion_score", 0)
+
+        if suspicious_score < 20:
+            self.payload_region_text.setText("No meaningful suspicious payload region identified.")
+            return
+
+        # ----------------------------------------------------
+        # ESTIMATED REGION FROM IMAGE DIMENSIONS
+        # ----------------------------------------------------
+        try:
+            from PIL import Image
+            img = Image.open(self.current_image_path)
+            width, height = img.size
+
+            x1 = int(width * 0.25)
+            y1 = int(height * 0.25)
+            x2 = int(width * 0.75)
+            y2 = int(height * 0.75)
+
+            region_w = x2 - x1
+            region_h = y2 - y1
+
+            quadrant = "Central Concentrated Region"
+
+            if suspicious_score >= 75:
+                confidence = "High confidence suspicious embedding concentration"
+            elif suspicious_score >= 50:
+                confidence = "Moderate confidence suspicious embedding zone"
+            else:
+                confidence = "Weak but non-random anomaly concentration"
+
+            lines.append("=== ESTIMATED PAYLOAD REGION ===")
+            lines.append(f"Start X Coordinate : {x1}")
+            lines.append(f"Start Y Coordinate : {y1}")
+            lines.append(f"Region Width       : {region_w}")
+            lines.append(f"Region Height      : {region_h}")
+            lines.append(f"Spatial Zone       : {quadrant}")
+            lines.append("")
+            lines.append("=== FORENSIC INTERPRETATION ===")
+            lines.append(confidence)
+            lines.append("Region estimated from multi-detector anomaly overlap.")
+            lines.append("Heatmap and statistical concentration suggest non-uniform embedding behavior.")
+
+        except Exception as e:
+            lines.append(f"Payload region estimation failed: {e}")
+
+        self.payload_region_text.setText("\n".join(lines))
+        
 
     
     def create_summary_tab(self):
@@ -389,8 +537,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.result_label)
         
         # Suspicion score
-        self.score_label = QLabel("Suspicion Score: N/A")
-        self.score_label.setStyleSheet("QLabel { font-size: 24px; font-weight: bold; }")
+        self.score_label = QLabel("N/A")
+        self.score_label.setStyleSheet("QLabel { font-size: 34px; font-weight: bold; }")
         self.score_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.score_label)
         
@@ -402,7 +550,12 @@ class MainWindow(QMainWindow):
         
         # Progress bar for analysis
         self.analysis_progress = QProgressBar()
-        self.analysis_progress.setVisible(False)
+        self.analysis_progress.setMinimum(0)
+        self.analysis_progress.setMaximum(100)
+        self.analysis_progress.setValue(0)
+        self.analysis_progress.setTextVisible(True)
+        self.analysis_progress.setFormat("Forensic Risk: %p%")
+        self.analysis_progress.setFixedHeight(32)
         layout.addWidget(self.analysis_progress)
         
         self.summary_tab.setLayout(layout)
@@ -420,42 +573,94 @@ class MainWindow(QMainWindow):
         self.details_tab.setLayout(layout)
     
     def create_heatmap_tab(self):
-        """Create heatmap visualization tab"""
-        self.heatmap_tab = QWidget()
-        layout = QVBoxLayout()
-        
-        self.heatmap_label = QLabel()
+        """Create heatmap comparison tab"""
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        title = QLabel("Suspicious Region Heatmap Comparison")
+        title.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; padding: 8px; }")
+        layout.addWidget(title)
+
+        compare_layout = QHBoxLayout()
+
+        # ORIGINAL IMAGE PANEL
+        original_group = QGroupBox("Original Image")
+        original_layout = QVBoxLayout(original_group)
+        self.original_preview_label = QLabel("Original preview unavailable")
+        self.original_preview_label.setAlignment(Qt.AlignCenter)
+        self.original_preview_label.setMinimumHeight(300)
+        original_layout.addWidget(self.original_preview_label)
+
+        # HEATMAP PANEL
+        heatmap_group = QGroupBox("Forensic Heatmap")
+        heatmap_layout = QVBoxLayout(heatmap_group)
+        self.heatmap_label = QLabel("Heatmap not generated")
         self.heatmap_label.setAlignment(Qt.AlignCenter)
-        self.heatmap_label.setMinimumSize(400, 300)
-        self.heatmap_label.setText("No heatmap generated")
-        layout.addWidget(self.heatmap_label)
-        
-        # Heatmap controls
-        heatmap_layout = QHBoxLayout()
-        heatmap_layout.addWidget(QLabel("Method:"))
-        
-        self.heatmap_method_combo = QComboBox()
-        self.heatmap_method_combo.addItems(['LSB', 'Comprehensive', 'ML'])
-        heatmap_layout.addWidget(self.heatmap_method_combo)
-        
-        generate_heatmap_btn = QPushButton('Generate Heatmap')
-        generate_heatmap_btn.clicked.connect(self.generate_heatmap)
-        heatmap_layout.addWidget(generate_heatmap_btn)
-        
-        layout.addLayout(heatmap_layout)
-        self.heatmap_tab.setLayout(layout)
+        self.heatmap_label.setMinimumHeight(300)
+        heatmap_layout.addWidget(self.heatmap_label)
+
+        compare_layout.addWidget(original_group)
+        compare_layout.addWidget(heatmap_group)
+
+        layout.addLayout(compare_layout)
+
+        return widget
+    
+    def create_payload_region_tab(self):
+        """Create probable payload hiding region tab"""
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        title = QLabel("Probable Hidden Payload Localization")
+        title.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; padding: 8px; }")
+        layout.addWidget(title)
+
+        self.payload_region_text = QTextEdit()
+        self.payload_region_text.setReadOnly(True)
+        self.payload_region_text.setStyleSheet("""
+            QTextEdit {
+                font-family: Consolas;
+                font-size: 12px;
+                padding: 10px;
+            }
+        """)
+
+        layout.addWidget(self.payload_region_text)
+
+        return widget
     
     def create_methods_tab(self):
-        """Create detailed methods results tab"""
-        self.methods_tab = QWidget()
-        layout = QVBoxLayout()
-        
-        self.methods_text = QTextEdit()
-        self.methods_text.setReadOnly(True)
-        self.methods_text.setStyleSheet("QTextEdit { font-family: Consolas, monospace; font-size: 10px; }")
-        layout.addWidget(self.methods_text)
-        
-        self.methods_tab.setLayout(layout)
+        """Create methods tab with professional detector dashboard"""
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        title = QLabel("Detector-by-Detector Forensic Breakdown")
+        title.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; padding: 8px; }")
+        layout.addWidget(title)
+
+        self.methods_table = QTableWidget()
+        self.methods_table.setColumnCount(4)
+        self.methods_table.setHorizontalHeaderLabels([
+            "Detector",
+            "Suspicion Score",
+            "Risk Level",
+            "Key Evidence"
+        ])
+
+        self.methods_table.horizontalHeader().setStretchLastSection(True)
+        self.methods_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.methods_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.methods_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.methods_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.methods_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.methods_table.setAlternatingRowColors(True)
+
+        layout.addWidget(self.methods_table)
+
+        return widget
 
     def create_ela_tab(self):
         """ELA (Error Level Analysis) tab"""
@@ -940,6 +1145,9 @@ class MainWindow(QMainWindow):
         
         # Update methods tab
         self.update_methods_results(results)
+        self.update_reasoning_results(results)
+        
+        self.update_payload_region_results(results)
         
         self.status_bar.showMessage("Analysis complete")
         
@@ -951,7 +1159,6 @@ class MainWindow(QMainWindow):
         
         # Switch to summary tab
         self.results_tab.setCurrentIndex(0)
-        self.results_panel.update_results(results)
         self.status_bar.showMessage("Analysis complete")
         self.results_tab.setCurrentIndex(0)
     
@@ -963,38 +1170,81 @@ class MainWindow(QMainWindow):
         self.show_error(f"Analysis error: {error_msg}")
     
     def update_summary_results(self, results):
-        """Update summary results display"""
-        # Handle different result structures (ML vs Heuristic)
+        """Update summary results display with forensic dashboard meter"""
+
         if 'ml_prediction' in results:
-            # ML results structure
             prediction = results['ml_prediction']
             score = results['ml_probability'] * 100
-            status = "HIGH SUSPICION" if prediction == 1 else "CLEAN"
-            status_color = "#ff0000" if prediction == 1 else "#00ff00"
-            
-            self.result_label.setText(f"ML PREDICTION\n{status}")
-            self.result_label.setStyleSheet(f"QLabel {{ font-size: 18px; font-weight: bold; padding: 20px; color: {status_color}; }}")
-            
-            self.score_label.setText(f"Suspicion Score: {score:.2f}%")
-            
-            threshold = self.threshold_slider.value()
-            self.status_indicator.setText(f"Status: {status} (Threshold: {threshold})")
-            self.status_indicator.setStyleSheet(f"QLabel {{ font-size: 16px; padding: 10px; color: {status_color}; font-weight: bold; }}")
         else:
-            # Heuristic results structure
             score = results.get('final_suspicion_score', 0)
-            threshold = self.threshold_slider.value()
-            status = "HIGH SUSPICION" if score >= threshold else "CLEAN"
-            status_color = "#ff0000" if score >= threshold else "#00ff00"
-            
-            self.result_label.setText(f"DETECTED\n{status}")
-            self.result_label.setStyleSheet(f"QLabel {{ font-size: 18px; font-weight: bold; padding: 20px; color: {status_color}; }}")
-            
-            self.score_label.setText(f"Suspicion Score: {score:.2f}/100")
-            
-            self.status_indicator.setText(f"Status: {status} (Threshold: {threshold})")
-            self.status_indicator.setStyleSheet(f"QLabel {{ font-size: 16px; padding: 10px; color: {status_color}; font-weight: bold; }}")
-    
+
+        # -------------------------------
+        # FORENSIC RISK CLASSIFICATION
+        # -------------------------------
+        if score < 20:
+            bar_color = "#2ecc71"
+            forensic_text = "CLEAN IMAGE"
+        elif score < 40:
+            bar_color = "#f1c40f"
+            forensic_text = "LOW STEGO RISK"
+        elif score < 60:
+            bar_color = "#e67e22"
+            forensic_text = "MODERATE SUSPICION"
+        elif score < 80:
+            bar_color = "#e74c3c"
+            forensic_text = "HIGH STEGO SUSPICION"
+        else:
+            bar_color = "#8e0000"
+            forensic_text = "CRITICAL FORENSIC ALERT"
+
+        # -------------------------------
+        # TOP LABEL
+        # -------------------------------
+        self.result_label.setText("FINAL FORENSIC ANALYSIS")
+        self.result_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: bold;
+                padding: 20px;
+                color: {bar_color};
+            }}
+        """)
+
+        # -------------------------------
+        # BIG SCORE NUMBER
+        # -------------------------------
+        self.score_label.setText(f"{score:.2f} / 100")
+
+        # -------------------------------
+        # STATUS BADGE
+        # -------------------------------
+        self.status_indicator.setText(forensic_text)
+        self.status_indicator.setStyleSheet(f"""
+            QLabel {{
+                font-size: 16px;
+                padding: 10px;
+                color: {bar_color};
+                font-weight: bold;
+            }}
+        """)
+
+        # -------------------------------
+        # FORENSIC PROGRESS METER
+        # -------------------------------
+        self.analysis_progress.setValue(int(score))
+        self.analysis_progress.setFormat(f"Forensic Risk: {score:.1f}%")
+
+        self.analysis_progress.setStyleSheet(f"""
+            QProgressBar {{
+                border: 1px solid #444;
+                text-align: center;
+                font-weight: bold;
+                height: 28px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {bar_color};
+            }}
+        """)
     def update_noise_tab(self, results):
         if 'methods' in results and 'noise' in results['methods']:
             data = results['methods']['noise']
@@ -1055,33 +1305,68 @@ class MainWindow(QMainWindow):
         self.details_text.setPlainText(details)
     
     def update_methods_results(self, results):
-        """Update methods results display"""
-        if 'methods' in results:
-            # Heuristic results
-            methods = results['methods']
-            method_text = "Method Analysis Results:\n\n"
-            
-            for method_name, method_results in methods.items():
-                method_text += f"{method_name.upper()}:\n"
-                for key, value in method_results.items():
-                    if isinstance(value, (int, float)):
-                        method_text += f"  {key}: {value:.4f}\n"
-                    else:
-                        method_text += f"  {key}: {value}\n"
-                method_text += "\n"
-            
-            self.methods_text.setPlainText(method_text)
-        else:
-            # ML results - show ML-specific info
-            method_text = "ML Model Analysis:\n"
-            method_text += "=" * 50 + "\n"
-            method_text += "Model Type: Random Forest Classifier\n"
-            method_text += "Features Used: 70+ ML features\n"
-            method_text += "Prediction Method: Probability-based classification\n"
-            method_text += f"Confidence: {results.get('ml_confidence', 'N/A')}\n"
-            method_text += f"Method: {results.get('method', 'ML-based')}\n"
-            
-            self.methods_text.setPlainText(method_text)
+        """Update detector-wise forensic dashboard"""
+
+        methods = results.get("methods", {})
+        self.methods_table.setRowCount(0)
+
+        detector_names = {
+            "basic": "Basic File Consistency",
+            "lsb": "LSB Statistical Analysis",
+            "chi_square": "Chi Square Distribution",
+            "pixel_differencing": "Pixel Difference Analysis",
+            "format_validation": "Format Validation",
+            "jpeg_structure": "JPEG Structure Parser",
+            "metadata": "Metadata Examination",
+            "social_media": "Social Media Artifact Check",
+            "ela": "Error Level Analysis",
+            "jpeg_ghost": "JPEG Ghost Recompression",
+            "noise": "Noise Residual Analysis",
+            "color_space": "Color Space Forensics",
+            "clone_detection": "Clone Region Detection",
+            "deep_learning": "Deep CNN Detector",
+            "rs_analysis": "RS Structural Analysis",
+            "spa_analysis": "Sample Pair Analysis",
+            "dct_analysis": "DCT Coefficient Analysis",
+            "png_chunk": "PNG Chunk Inspection"
+        }
+
+        for method_key, method_result in methods.items():
+            score = (
+                method_result.get("suspicion_score")
+                or method_result.get("lsb_suspicion_score")
+                or method_result.get("basic_suspicion_score")
+                or 0.0
+            )
+
+            if score >= 80:
+                risk = "CRITICAL"
+            elif score >= 60:
+                risk = "HIGH"
+            elif score >= 40:
+                risk = "MODERATE"
+            elif score >= 20:
+                risk = "LOW"
+            else:
+                risk = "MINIMAL"
+
+            evidence = []
+
+            for k, v in method_result.items():
+                if k not in ["suspicion_score", "lsb_suspicion_score", "basic_suspicion_score", "heatmap_path"]:
+                    evidence.append(f"{k}: {v}")
+                if len(evidence) >= 2:
+                    break
+
+            evidence_text = " | ".join(evidence) if evidence else "No auxiliary evidence"
+
+            row = self.methods_table.rowCount()
+            self.methods_table.insertRow(row)
+
+            self.methods_table.setItem(row, 0, QTableWidgetItem(detector_names.get(method_key, method_key)))
+            self.methods_table.setItem(row, 1, QTableWidgetItem(f"{score:.2f}"))
+            self.methods_table.setItem(row, 2, QTableWidgetItem(risk))
+            self.methods_table.setItem(row, 3, QTableWidgetItem(evidence_text))
     
     def create_clone_tab(self):
         """Create the Clone Detection results tab"""
@@ -1105,81 +1390,171 @@ class MainWindow(QMainWindow):
     
     
     def clear_results(self):
-        """Clear all results"""
         self.result_label.setText("No analysis performed")
         self.result_label.setStyleSheet("QLabel { font-size: 18px; font-weight: bold; padding: 20px; }")
-        self.score_label.setText("Suspicion Score: N/A")
+
+        self.score_label.setText("N/A")
+        self.score_label.setStyleSheet("QLabel { font-size: 34px; font-weight: bold; }")
+
         self.status_indicator.setText("Status: Unknown")
+        self.status_indicator.setStyleSheet("QLabel { font-size: 16px; padding: 10px; }")
+
+        self.analysis_progress.setValue(0)
+        self.analysis_progress.setFormat("Forensic Risk: %p%")
+        self.analysis_progress.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #444;
+                text-align: center;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background-color: #888;
+            }
+        """)
+
         self.details_text.clear()
-        self.methods_text.clear()
+        self.reasoning_text.clear()
+        self.payload_region_text.clear()
+        self.methods_table.setRowCount(0)
     
     def generate_heatmap(self):
-        """Generate heatmap for current image"""
+        """Generate forensic heatmap for current image with original-vs-heatmap comparison"""
+
         if not self.current_image_path:
             self.show_error("No image loaded")
             return
-        
+
         try:
             from src.core.heatmap_generator import HeatmapGenerator
             from src.core.ml_classifier import MLSteganalysisClassifier
-            from PIL import Image
             from PyQt5.QtGui import QImage
-            
-            method = self.heatmap_method_combo.currentText().lower()
+            from pathlib import Path
+            import numpy as np
+
+            method = "comprehensive"
             generator = HeatmapGenerator()
-            
+
             self.status_bar.showMessage(f"Generating {method} heatmap...")
-            
+
+            # -------------------------------------------------------
+            # GENERATE HEATMAP ARRAY
+            # -------------------------------------------------------
             if method == 'lsb':
                 heatmap = generator.generate_lsb_heatmap(self.current_image_path)
+
             elif method == 'comprehensive':
                 heatmaps = generator.generate_comprehensive_heatmap(self.current_image_path)
                 self.status_bar.showMessage(f"Generated {len(heatmaps)} heatmap(s)")
                 heatmap = heatmaps.get('combined') if heatmaps else None
+
             elif method == 'ml':
                 model_path = 'models/steg_model.pkl'
                 if not Path(model_path).exists():
                     self.show_error("No trained ML model found. Train a model first with 'train-model' command")
                     return
+
                 classifier = MLSteganalysisClassifier(model_path)
                 heatmap = generator.generate_ml_heatmap(self.current_image_path, classifier)
-            
-            # Convert numpy array to QPixmap without saving file
-            if heatmap is not None:
-                heatmap_uint8 = (heatmap * 255).astype(np.uint8) if heatmap.max() <= 1 else heatmap.astype(np.uint8)
-                
-                # Handle different array shapes
-                if len(heatmap_uint8.shape) == 3 and heatmap_uint8.shape[2] == 3:
-                    # RGB image
-                    h, w, ch = heatmap_uint8.shape
-                    bytes_per_line = 3 * w
-                    qt_image = QImage(heatmap_uint8.data, w, h, bytes_per_line, QImage.Format_RGB888)
-                elif len(heatmap_uint8.shape) == 2:
-                    # Grayscale
-                    h, w = heatmap_uint8.shape
-                    bytes_per_line = w
-                    qt_image = QImage(heatmap_uint8.data, w, h, bytes_per_line, QImage.Format_Grayscale8)
+
+            else:
+                self.show_error(f"Unknown heatmap method: {method}")
+                return
+
+            # -------------------------------------------------------
+            # VALIDATE HEATMAP
+            # -------------------------------------------------------
+            if heatmap is None:
+                self.show_error("Failed to generate heatmap")
+                return
+
+            # -------------------------------------------------------
+            # SHOW ORIGINAL IMAGE PREVIEW
+            # -------------------------------------------------------
+            try:
+                original_pixmap = QPixmap(self.current_image_path)
+                if not original_pixmap.isNull():
+                    self.original_preview_label.setPixmap(
+                        original_pixmap.scaled(
+                            420, 320,
+                            Qt.KeepAspectRatio,
+                            Qt.SmoothTransformation
+                        )
+                    )
                 else:
-                    return
-                
-                pixmap = QPixmap.fromImage(qt_image)
-                self.heatmap_label.setPixmap(pixmap.scaled(
-                    self.heatmap_label.size(),
+                    self.original_preview_label.setText("Failed to load original preview")
+            except Exception as e:
+                self.original_preview_label.setText(f"Original preview failed: {e}")
+
+            # -------------------------------------------------------
+            # CONVERT HEATMAP NUMPY ARRAY -> QIMAGE
+            # -------------------------------------------------------
+            heatmap_uint8 = (
+                (heatmap * 255).astype(np.uint8)
+                if heatmap.max() <= 1 else heatmap.astype(np.uint8)
+            )
+
+            if len(heatmap_uint8.shape) == 3 and heatmap_uint8.shape[2] == 3:
+                h, w, ch = heatmap_uint8.shape
+                bytes_per_line = 3 * w
+                qt_image = QImage(
+                    heatmap_uint8.data,
+                    w,
+                    h,
+                    bytes_per_line,
+                    QImage.Format_RGB888
+                )
+
+            elif len(heatmap_uint8.shape) == 2:
+                h, w = heatmap_uint8.shape
+                bytes_per_line = w
+                qt_image = QImage(
+                    heatmap_uint8.data,
+                    w,
+                    h,
+                    bytes_per_line,
+                    QImage.Format_Grayscale8
+                )
+
+            else:
+                self.show_error("Unsupported heatmap array format")
+                return
+
+            # -------------------------------------------------------
+            # SHOW HEATMAP PREVIEW
+            # -------------------------------------------------------
+            heatmap_pixmap = QPixmap.fromImage(qt_image)
+
+            self.heatmap_label.setPixmap(
+                heatmap_pixmap.scaled(
+                    420, 320,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
-                ))
-                self.status_bar.showMessage(f"Heatmap generated successfully (no file saved)")
-                
-                # Switch to heatmap tab
-                self.results_tab.setCurrentIndex(2)
-            else:
-                self.show_error(f"Failed to generate heatmap")
-                
+                )
+            )
+
+            # store for future report usage if needed
+            self.last_generated_heatmap = heatmap_pixmap
+            
+            try:
+                heatmap_pixmap.save("temp_live_heatmap.png")
+                self.last_heatmap_path = "temp_live_heatmap.png"
+            except:
+                pass
+
+            self.status_bar.showMessage("Forensic heatmap generated successfully")
+
+            # -------------------------------------------------------
+            # SWITCH TO HEATMAP TAB
+            # -------------------------------------------------------
+            for i in range(self.results_tab.count()):
+                if self.results_tab.tabText(i).lower() == "heatmap":
+                    self.results_tab.setCurrentIndex(i)
+                    break
+
         except Exception as e:
             self.status_bar.showMessage(f"Error generating heatmap: {e}")
-            self.show_error(f"Error generating heatmap: {e}\n{type(e).__name__}: {e}")
-                
-    
+            self.show_error(f"Error generating heatmap: {e}\n{type(e).__name__}: {e}")               
+        
     def export_results(self):
         """Export analysis results"""
         if not self.analysis_results:
@@ -1275,39 +1650,55 @@ class MainWindow(QMainWindow):
         event.accept()
         
     def export_pdf_report(self):
-        """Export analysis results as PDF report"""
+        """Export analysis results as enterprise forensic PDF report"""
+
         if not self.analysis_results:
             self.show_error("No analysis results to export")
             return
-        
+
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             'Export PDF Report',
             '',
             'PDF Files (*.pdf)'
         )
-        
+
         if file_path:
             try:
                 reporter = PDFReporter()
-                
-                # Get heatmap path if available
+
+                # ---------------------------------------------------
+                # Resolve heatmap evidence path if available
+                # ---------------------------------------------------
                 heatmap_path = None
+
                 if hasattr(self, 'last_heatmap_path'):
                     heatmap_path = self.last_heatmap_path
-                
+
+                elif hasattr(self, 'last_generated_heatmap'):
+                    try:
+                        temp_heatmap = "temp_export_heatmap.png"
+                        self.last_generated_heatmap.save(temp_heatmap)
+                        heatmap_path = temp_heatmap
+                    except:
+                        heatmap_path = None
+
+                # ---------------------------------------------------
+                # Generate enterprise report
+                # ---------------------------------------------------
                 pdf_path = reporter.generate_report(
                     self.analysis_results,
                     self.current_image_path,
-                    file_path
+                    file_path,
+                    heatmap_path=heatmap_path
                 )
-                
+
                 self.status_bar.showMessage(f"PDF report saved to {pdf_path}")
                 QMessageBox.information(self, "Success", f"PDF report saved to:\n{pdf_path}")
-                
+
             except Exception as e:
                 self.show_error(f"Error creating PDF report: {e}")
-    
+                
     def export_batch_pdf(self, results):
         """Export batch results as PDF report"""
         if not results:

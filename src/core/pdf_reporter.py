@@ -42,165 +42,344 @@ class PDFReporter:
             spaceAfter=6
         )
     
-    def generate_report(self, analysis_results: dict, image_path: str, output_pdf_path: str) -> str:
+    def generate_report(self, analysis_results: dict, image_path: str, output_pdf_path: str, heatmap_path: str = None) -> str:
         """
-        Generate comprehensive PDF report from analysis results
-        
-        Args:
-            analysis_results: Complete analysis results from SteganographyAnalyzer
-            image_path: Path to the analyzed image
-            output_pdf_path: Path where PDF should be saved
-            
-        Returns:
-            Path to generated PDF
+        Generate enterprise forensic PDF report from StegHunter analysis
         """
+
         try:
-            doc = SimpleDocTemplate(output_pdf_path, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+            doc = SimpleDocTemplate(
+                output_pdf_path,
+                pagesize=letter,
+                topMargin=0.5 * inch,
+                bottomMargin=0.5 * inch
+            )
+
             elements = []
-            
-            # Title
-            elements.append(Paragraph("🔍 StegHunter Analysis Report", self.title_style))
-            elements.append(Paragraph("Professional Steganography Detection Analysis", self.styles['Normal']))
+
+            # ============================================================
+            # PAGE 1 : TITLE + FINAL VERDICT + IMAGE OVERVIEW
+            # ============================================================
+
+            elements.append(Paragraph("StegHunter Forensic Investigation Report", self.title_style))
+            elements.append(Paragraph("Professional Multi-Detector Steganography Examination", self.styles['Normal']))
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             elements.append(Paragraph(f"Generated on {timestamp}", self.styles['Normal']))
-            elements.append(Spacer(1, 0.3*inch))
-            
-            # Verdict Section
-            verdict = analysis_results.get('verdict', 'UNKNOWN')
-            confidence = analysis_results.get('confidence_score', 0)
+            elements.append(Spacer(1, 0.25 * inch))
+
+            final_score = (
+                analysis_results.get("final_suspicion_score")
+                or analysis_results.get("overall_score")
+                or 0
+            )
+
+            confidence = (
+                analysis_results.get("confidence_score")
+                or analysis_results.get("ml_probability", 0) * 100
+                or 0
+            )
+
+            verdict = self._derive_forensic_verdict(final_score)
             verdict_color = self._get_verdict_color_hex(verdict)
-            
+
             verdict_data = [
-                ['Analysis Verdict', f'{verdict} (Confidence: {confidence:.1f}%)']
+                ["Final Forensic Verdict", verdict],
+                ["Suspicion Score", f"{final_score:.2f} / 100"],
+                ["Confidence Level", f"{confidence:.2f}%"],
+                ["Analyzed File", Path(image_path).name]
             ]
-            verdict_table = Table(verdict_data, colWidths=[2*inch, 4.5*inch])
+
+            verdict_table = Table(verdict_data, colWidths=[2.2 * inch, 4.3 * inch])
             verdict_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), verdict_color),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                ('TOPPADDING', (0, 0), (-1, -1), 12),
-                ('LEFTPADDING', (0, 0), (-1, -1), 12),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-            ]))
-            elements.append(verdict_table)
-            elements.append(Spacer(1, 0.2*inch))
-            
-            # Statistics
-            overall_score = analysis_results.get('overall_score', 0)
-            stats_data = [
-                ['Overall Score', f'{overall_score:.1f}/100'],
-                ['Confidence', f'{confidence:.1f}%'],
-                ['File', Path(image_path).name]
-            ]
-            stats_table = Table(stats_data, colWidths=[2*inch, 4.5*inch])
-            stats_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f9f9f9')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e0e0e0')),
+                ('BACKGROUND', (0, 0), (-1, 0), verdict_color),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dddddd')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7f7f7')]),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                 ('TOPPADDING', (0, 0), (-1, -1), 8),
             ]))
-            elements.append(Paragraph("Overview", self.heading_style))
-            elements.append(stats_table)
-            elements.append(Spacer(1, 0.2*inch))
-            
-            # Image
+
+            elements.append(verdict_table)
+            elements.append(Spacer(1, 0.2 * inch))
+
+            # ------------------------------------------------------------
+            # ORIGINAL IMAGE EMBED
+            # ------------------------------------------------------------
             try:
                 img = Image.open(image_path)
-                # Resize to fit
-                img_width = 6*inch
+                img_width = 5.8 * inch
                 img_height = (img.height / img.width) * img_width
-                if img_height > 4*inch:
-                    img_height = 4*inch
+
+                if img_height > 3.6 * inch:
+                    img_height = 3.6 * inch
                     img_width = (img.width / img.height) * img_height
-                
-                img_path_temp = str(Path(image_path))
-                elements.append(Paragraph("Analyzed Image", self.heading_style))
-                elements.append(RLImage(img_path_temp, width=img_width, height=img_height))
-                elements.append(Spacer(1, 0.1*inch))
+
+                elements.append(Paragraph("Analyzed Evidence Image", self.heading_style))
+                elements.append(RLImage(str(Path(image_path)), width=img_width, height=img_height))
+                elements.append(Spacer(1, 0.2 * inch))
             except:
-                elements.append(Paragraph("(Image could not be embedded)", self.normal_style))
-            
-            # Methods
-            elements.append(PageBreak())
-            elements.append(Paragraph("Detection Methods", self.heading_style))
-            methods = analysis_results.get('methods_used', [])
-            methods_data = [['Method', 'Score', 'Description']]
-            for method in methods:
-                methods_data.append([
-                    method.get('name', 'Unknown'),
-                    f"{method.get('score', 0):.1f}",
-                    method.get('description', '')[:50]
-                ])
-            methods_table = Table(methods_data, colWidths=[2*inch, 1.5*inch, 2.5*inch])
-            methods_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0066CC')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e0e0e0')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
+                elements.append(Paragraph("(Evidence image preview unavailable)", self.normal_style))
+
+            # ------------------------------------------------------------
+            # BASIC FILE INTELLIGENCE
+            # ------------------------------------------------------------
+            basic_info = self._collect_file_intelligence(image_path)
+
+            elements.append(Paragraph("File Intelligence", self.heading_style))
+            info_data = [
+                ["MD5 Hash", basic_info["md5"]],
+                ["SHA256 Hash", basic_info["sha256"][:50] + "..."],
+                ["File Size", basic_info["size"]],
+                ["Image Dimensions", basic_info["dimensions"]],
+                ["Entropy", basic_info["entropy"]]
+            ]
+
+            info_table = Table(info_data, colWidths=[2.0 * inch, 4.5 * inch])
+            info_table.setStyle(TableStyle([
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dddddd')),
+                ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
                 ('TOPPADDING', (0, 0), (-1, -1), 6),
             ]))
-            elements.append(methods_table)
-            elements.append(Spacer(1, 0.2*inch))
+            elements.append(info_table)
+
+            # ============================================================
+            # PAGE 2 : DETECTOR TABLE + FORENSIC REASONING
+            # ============================================================
+
+            elements.append(PageBreak())
+            elements.append(Paragraph("Detector-wise Forensic Breakdown", self.heading_style))
+
+            methods = analysis_results.get("methods", {})
+            detector_rows = [["Detector", "Score", "Risk", "Evidence"]]
+
+            detector_name_map = {
+                "basic": "Basic Consistency",
+                "lsb": "LSB Statistical Analysis",
+                "chi_square": "Chi Square Distribution",
+                "rs_analysis": "RS Structural Analysis",
+                "spa_analysis": "Sample Pair Analysis",
+                "dct_analysis": "DCT Coefficient Analysis",
+                "jpeg_ghost": "JPEG Ghost Recompression",
+                "ela": "Error Level Analysis",
+                "noise": "Noise Residual",
+                "color_space": "Color Space Forensics",
+                "clone_detection": "Clone Region Detection",
+                "deep_learning": "CNN Deep Detector",
+                "png_chunk": "PNG Chunk Inspection"
+            }
+
+            for key, value in methods.items():
+                score = (
+                    value.get("suspicion_score")
+                    or value.get("lsb_suspicion_score")
+                    or value.get("basic_suspicion_score")
+                    or 0
+                )
+
+                risk = self._risk_label(score)
+                evidence = self._summarize_detector_evidence(value)
+
+                detector_rows.append([
+                    detector_name_map.get(key, key),
+                    f"{score:.2f}",
+                    risk,
+                    evidence
+                ])
+
+            detector_table = Table(detector_rows, colWidths=[1.8 * inch, 0.9 * inch, 1.0 * inch, 2.8 * inch])
+            detector_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0066CC')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dddddd')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7f7f7')]),
+            ]))
+
+            elements.append(detector_table)
+            elements.append(Spacer(1, 0.2 * inch))
+
+            # ------------------------------------------------------------
+            # FORENSIC REASONING SECTION
+            # ------------------------------------------------------------
+            elements.append(Paragraph("Analyst Forensic Interpretation", self.heading_style))
+
+            forensic_reasoning = self._extract_reasoning_text(analysis_results)
+            elements.append(Paragraph(forensic_reasoning, self.normal_style))
+            elements.append(Spacer(1, 0.2 * inch))
             
-            # Hiding Locations
-            hiding_locs = analysis_results.get('hiding_locations', {})
-            if hiding_locs:
-                elements.append(Paragraph("Potential Hiding Locations", self.heading_style))
-                suspicious_areas = hiding_locs.get('suspicious_areas', [])
-                if suspicious_areas:
-                    locs_data = [['Location', 'Suspicion', 'Reason']]
-                    for area in suspicious_areas[:6]:
-                        locs_data.append([
-                            area.get('location', 'Unknown'),
-                            f"{area.get('suspicion_score', 0):.1f}%",
-                            area.get('reason', '')[:40]
-                        ])
-                    locs_table = Table(locs_data, colWidths=[2*inch, 1.5*inch, 2.5*inch])
-                    locs_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0066CC')),
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e0e0e0')),
-                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
-                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-                        ('TOPPADDING', (0, 0), (-1, -1), 6),
-                    ]))
-                    elements.append(locs_table)
-                    elements.append(Spacer(1, 0.2*inch))
-            
-            # Footer
-            elements.append(Spacer(1, 0.3*inch))
+            # ------------------------------------------------------------
+            # PAYLOAD REGION SUMMARY
+            # ------------------------------------------------------------
+            elements.append(Paragraph("Probable Payload Localization", self.heading_style))
+
+            payload_text = self._extract_payload_region_text(analysis_results)
+            elements.append(Paragraph(payload_text, self.normal_style))
+            elements.append(Spacer(1, 0.2 * inch))
+
+            # ============================================================
+            # PAGE 3 : HEATMAP + FINAL CONCLUSION
+            # ============================================================
+
+            elements.append(PageBreak())
+
+            if heatmap_path and Path(heatmap_path).exists():
+                try:
+                    hm = Image.open(heatmap_path)
+                    hm_width = 5.8 * inch
+                    hm_height = (hm.height / hm.width) * hm_width
+
+                    if hm_height > 4.5 * inch:
+                        hm_height = 4.5 * inch
+                        hm_width = (hm.width / hm.height) * hm_height
+
+                    elements.append(Paragraph("Suspicious Region Heatmap Evidence", self.heading_style))
+                    elements.append(RLImage(str(Path(heatmap_path)), width=hm_width, height=hm_height))
+                    elements.append(Spacer(1, 0.2 * inch))
+                except:
+                    elements.append(Paragraph("(Heatmap evidence unavailable)", self.normal_style))
+            else:
+                elements.append(Paragraph("No external heatmap evidence attached.", self.normal_style))
+                elements.append(Spacer(1, 0.2 * inch))
+
+            # ------------------------------------------------------------
+            # FINAL CONCLUSION
+            # ------------------------------------------------------------
+            elements.append(Paragraph("Final Conclusion", self.heading_style))
+
+            conclusion_text = (
+                f"StegHunter multi-detector forensic analysis assigned a final suspicion score of "
+                f"{final_score:.2f}/100, corresponding to verdict: {verdict}. "
+                f"Cross-detector statistical irregularities, structural anomalies, and heuristic "
+                f"embedding signatures indicate that this digital image exhibits "
+                f"{'strong' if final_score >= 70 else 'moderate' if final_score >= 40 else 'limited'} "
+                f"steganographic suspicion."
+            )
+
+            elements.append(Paragraph(conclusion_text, self.normal_style))
+            elements.append(Spacer(1, 0.3 * inch))
+
             elements.append(Paragraph(
-                "This report was generated by StegHunter - Professional Steganography Detection Tool",
+                "Generated by StegHunter - Hybrid Steganography Detection Framework",
                 self.styles['Normal']
             ))
             elements.append(Paragraph(
                 "GitHub: https://github.com/hackr25/StegHunter",
                 self.styles['Normal']
             ))
-            
-            # Build PDF
+
             doc.build(elements)
             return output_pdf_path
+
         except Exception as e:
             raise Exception(f"PDF generation failed: {str(e)}")
+        
+    def _collect_file_intelligence(self, image_path: str):
+        import hashlib
+        import math
+        from pathlib import Path
+        from PIL import Image
+
+        with open(image_path, "rb") as f:
+            raw = f.read()
+
+        md5 = hashlib.md5(raw).hexdigest()
+        sha256 = hashlib.sha256(raw).hexdigest()
+        size = f"{round(Path(image_path).stat().st_size / 1024, 2)} KB"
+
+        img = Image.open(image_path)
+        dimensions = f"{img.width} x {img.height}"
+
+        histogram = img.convert("L").histogram()
+        total = sum(histogram)
+        entropy = 0.0
+        for h in histogram:
+            if h != 0:
+                p = h / total
+                entropy -= p * math.log2(p)
+
+        return {
+            "md5": md5,
+            "sha256": sha256,
+            "size": size,
+            "dimensions": dimensions,
+            "entropy": f"{entropy:.3f}"
+        }
+    
+    def _risk_label(self, score: float) -> str:
+        if score >= 80:
+            return "CRITICAL"
+        elif score >= 60:
+            return "HIGH"
+        elif score >= 40:
+            return "MODERATE"
+        elif score >= 20:
+            return "LOW"
+        return "MINIMAL"
+    
+    def _summarize_detector_evidence(self, detector_result: dict) -> str:
+        parts = []
+        for k, v in detector_result.items():
+            if k not in ["suspicion_score", "lsb_suspicion_score", "basic_suspicion_score", "heatmap_path"]:
+                parts.append(f"{k}:{v}")
+            if len(parts) >= 2:
+                break
+        return " | ".join(parts) if parts else "No auxiliary evidence"
+    
+    def _extract_reasoning_text(self, analysis_results: dict) -> str:
+        reasoning = analysis_results.get("forensic_reasoning") or analysis_results.get("explanation") or {}
+
+        if isinstance(reasoning, str):
+            return reasoning
+
+        lines = []
+
+        verdict = reasoning.get("verdict")
+        summary = reasoning.get("summary")
+        findings = reasoning.get("detailed_findings") or reasoning.get("findings") or []
+
+        if verdict:
+            lines.append(f"Verdict: {verdict}")
+
+        if summary:
+            lines.append(summary)
+
+        if findings:
+            if isinstance(findings, list):
+                for item in findings[:4]:
+                    lines.append(f"• {item}")
+            else:
+                lines.append(str(findings))
+
+        return "<br/>".join(lines) if lines else "No detailed forensic reasoning available."
+    
+    def _extract_payload_region_text(self, analysis_results: dict) -> str:
+        payload = analysis_results.get("hiding_location") or analysis_results.get("payload_region") or {}
+
+        if isinstance(payload, str):
+            return payload
+
+        if payload:
+            return "<br/>".join([f"{k}: {v}" for k, v in payload.items()])
+
+        score = analysis_results.get("final_suspicion_score", 0)
+
+        if score >= 70:
+            return "High-confidence anomaly concentration observed in central image regions, indicating probable localized payload embedding."
+        elif score >= 40:
+            return "Moderate anomaly overlap detected; suspicious embedding may exist in statistically irregular zones."
+        else:
+            return "No strong localized payload concentration identified."
+        
+    
+
     
     def create_single_image_report(self, image_path: str, analysis_results: dict, heatmap_path: str, output_pdf_path: str) -> str:
         """Backward compatibility method"""
-        return self.generate_report(analysis_results, image_path, output_pdf_path)
+        return self.generate_report(analysis_results, image_path, output_pdf_path, heatmap_path)
     
     def create_batch_report(self, results: list, output_pdf_path: str) -> str:
         """Create batch report from multiple analysis results"""
