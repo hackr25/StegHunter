@@ -23,6 +23,7 @@ from src.core.pdf_reporter import PDFReporter
 from src.forensics.hash_entropy import calculate_hashes,calculate_entropy
 from .train_model_dialog import TrainModelDialog
 from .results_panel import ResultsPanel
+from .professional_style import set_theme
 
 
 class SteganographyAnalyzerWorker(QThread):
@@ -185,6 +186,19 @@ class MainWindow(QMainWindow):
         train_model_action.setStatusTip('Train ML detection model')
         train_model_action.triggered.connect(self.train_model)
         tools_menu.addAction(train_model_action)
+        
+        # View menu (Theme)
+        view_menu = menubar.addMenu('&View')
+        
+        light_theme_action = QAction('☀️ Light Theme', self)
+        light_theme_action.setStatusTip('Switch to light theme')
+        light_theme_action.triggered.connect(self.set_light_theme)
+        view_menu.addAction(light_theme_action)
+        
+        dark_theme_action = QAction('🌙 Dark Theme', self)
+        dark_theme_action.setStatusTip('Switch to dark theme')
+        dark_theme_action.triggered.connect(self.set_dark_theme)
+        view_menu.addAction(dark_theme_action)
         
         # Help menu
         help_menu = menubar.addMenu('&Help')
@@ -1309,6 +1323,18 @@ class MainWindow(QMainWindow):
                 
             except Exception as e:
                 self.show_error(f"Error creating batch PDF report: {e}")
+    
+    def set_light_theme(self):
+        """Switch to light theme"""
+        app = QApplication.instance()
+        set_theme(app, 'light')
+        self.status_bar.showMessage("Switched to Light Theme")
+    
+    def set_dark_theme(self):
+        """Switch to dark theme"""
+        app = QApplication.instance()
+        set_theme(app, 'dark')
+        self.status_bar.showMessage("Switched to Dark Theme")
 
 
 def main():
