@@ -69,6 +69,26 @@ class SteganographyAnalyzerWorker(QThread):
         except Exception as e:
             self.error_signal.emit(str(e))
 
+class VideoAnalyzerWorker(QThread):
+    """Worker thread for video analysis"""
+    progress_signal = pyqtSignal(int)
+    finished_signal = pyqtSignal(dict)
+    error_signal = pyqtSignal(str)
+    
+    def __init__(self, video_path, frame_sample_rate=5):
+        super().__init__()
+        self.video_path = video_path
+        self.frame_sample_rate = frame_sample_rate
+    
+    def run(self):
+        try:
+            from src.core.video_analyzer import VideoAnalyzer
+            analyzer = VideoAnalyzer(frame_sample_rate=self.frame_sample_rate)
+            results = analyzer.analyze_video(self.video_path)
+            self.finished_signal.emit(results)
+        except Exception as e:
+            self.error_signal.emit(str(e))
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -77,6 +97,7 @@ class MainWindow(QMainWindow):
         # CORE STATE VARIABLES FIRST
         # --------------------------------------------
         self.current_image_path = None
+        self.current_video_path = None
         self.current_image = None
         self.analysis_results = None
         self.last_heatmap_path = None
@@ -1068,16 +1089,20 @@ class MainWindow(QMainWindow):
         """)
     
     def open_image(self):
-        """Open image file dialog"""
+        """Open image/video file dialog"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            'Open Image',
+            'Open Image or Video',
             '',
-            'Image Files (*.png *.jpg *.jpeg *.bmp *.tiff *.tif);;All Files (*)'
+            'All Supported (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.webm);;Image Files (*.png *.jpg *.jpeg *.bmp *.tiff *.tif);;Video Files (*.mp4 *.avi *.mkv *.mov *.webm);;All Files (*)'
         )
         
         if file_path:
-            self.load_image(file_path)
+            file_ext = Path(file_path).suffix.lower()
+            if file_ext in ['.mp4', '.avi', '.mkv', '.mov', '.webm', '.flv', '.wmv']:
+                self.load_video(file_path)
+            else:
+                self.load_image(file_path)
     
     def load_image(self, image_path):
         """Load and display image"""
@@ -1124,10 +1149,45 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(f"Error loading image: {e}")
             self.show_error(f"Error loading image: {e}")
     
+    def load_video(self, video_path):
+        """Load and prepare video for analysis"""
+        try:
+            from pathlib import Path
+            path = Path(video_path)
+            
+            # Store video path
+            self.current_video_path = str(path)
+            self.current_image_path = None
+            self.current_image = None
+            
+            # Update UI labels
+            self.image_info_label.setText(f"📹 Video: {path.name}")
+            self.status_bar.showMessage(f"Video loaded: {video_path}")
+            
+            # Show placeholder in image area
+            placeholder = QPixmap(400, 300)
+            placeholder.fill(Qt.gray)
+            self.image_label.setPixmap(placeholder)
+            
+            # Clear previous results
+            self.clear_results()
+            
+            # Enable analyze button
+            if hasattr(self, 'analyze_btn'):
+                self.analyze_btn.setEnabled(True)
+            
+        except Exception as e:
+            self.status_bar.showMessage(f"Error loading video: {e}")
+            self.show_error(f"Error loading video: {e}")
+    
     def analyze_image(self):
-        """Analyze the loaded image"""
+        """Analyze the loaded image or video"""
+        if hasattr(self, 'current_video_path') and self.current_video_path:
+            self.analyze_video()
+            return
+        
         if not self.current_image_path:
-            self.show_error("No image loaded")
+            self.show_error("No image or video loaded")
             return
         
         self.status_bar.showMessage("Analyzing image...")
@@ -1153,6 +1213,33 @@ class MainWindow(QMainWindow):
         
         # Start analysis
         self.analyzer_worker.start()
+    
+    def analyze_video(self):
+        """Analyze the loaded video"""
+        if not hasattr(self, 'current_video_path') or not self.current_video_path:
+            self.show_error("No video loaded")
+            return
+        
+        self.status_bar.showMessage("Analyzing video... This may take a moment...")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        
+        # Disable UI during analysis
+        self.setEnabled(False)
+        
+        # Create and start video analyzer worker
+        self.video_worker = VideoAnalyzerWorker(
+            self.current_video_path,
+            frame_sample_rate=5
+        )
+        
+        # Connect signals
+        self.video_worker.progress_signal.connect(self.update_progress)
+        self.video_worker.finished_signal.connect(self.video_analysis_finished)
+        self.video_worker.error_signal.connect(self.analysis_error)
+        
+        # Start analysis
+        self.video_worker.start()
     
     def update_progress(self, value):
         """Update progress bar"""
@@ -1188,6 +1275,86 @@ class MainWindow(QMainWindow):
         self.results_tab.setCurrentIndex(0)
         self.status_bar.showMessage("Analysis complete")
         self.results_tab.setCurrentIndex(0)
+    
+    def video_analysis_finished(self, results):
+        """Handle video analysis completion"""
+        self.analysis_results = results
+        self.progress_bar.setVisible(False)
+        self.setEnabled(True)
+        
+        if 'error' in results:
+            self.show_error(f"Video analysis error: {results['error']}")
+            self.status_bar.showMessage("Video analysis failed")
+            return
+        
+        # Update summary with video-specific info
+        self.update_video_summary(results)
+        
+        # Switch to summary tab
+        self.results_tab.setCurrentIndex(0)
+        self.status_bar.showMessage("Video analysis complete")
+    
+    def update_video_summary(self, results):
+        """Update summary tab with video analysis results"""
+        try:
+            filename = results.get('filename', 'Unknown')
+            frame_count = results.get('frame_count', 0)
+            analyzed_frames = results.get('analyzed_frames', 0)
+            overall_score = results.get('overall_score', 0)
+            analysis_time = results.get('analysis_time', 0)
+            
+            # Get risk level
+            if overall_score < 25:
+                risk_text = "LOW SUSPICION"
+                color = "#2ecc71"
+            elif overall_score < 50:
+                risk_text = "MODERATE SUSPICION"
+                color = "#f1c40f"
+            elif overall_score < 75:
+                risk_text = "HIGH SUSPICION"
+                color = "#e74c3c"
+            else:
+                risk_text = "CRITICAL ALERT"
+                color = "#8e0000"
+            
+            summary_text = f"""
+            ═══════════════════════════════════════════════════════════
+            📹 VIDEO FORENSICS ANALYSIS REPORT
+            ═══════════════════════════════════════════════════════════
+            
+            File: {filename}
+            Total Frames: {frame_count}
+            Analyzed Frames: {analyzed_frames}
+            Analysis Time: {analysis_time:.2f}s
+            
+            ═══════════════════════════════════════════════════════════
+            🎯 VERDICT: {risk_text}
+            ═══════════════════════════════════════════════════════════
+            
+            Overall Suspicion Score: {overall_score:.2f}/100
+            
+            LSB Entropy Timeline: Available in Video Analysis tab
+            Temporal Anomalies: {len(results.get('temporal_anomalies', []))} detected
+            
+            ═══════════════════════════════════════════════════════════
+            """
+            
+            self.result_label.setText("📹 VIDEO FORENSICS ANALYSIS")
+            self.result_label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 18px;
+                    font-weight: bold;
+                    background-color: {color};
+                    color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                }}
+            """)
+            
+            self.details_text.setPlainText(summary_text)
+            
+        except Exception as e:
+            self.details_text.setPlainText(f"Error processing video results: {e}")
     
     def analysis_error(self, error_msg):
         """Handle analysis error"""

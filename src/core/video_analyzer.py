@@ -17,7 +17,7 @@ try:
 except ImportError:
     HAS_IMAGEIO = False
 
-from .lsb_analyzer import lsb_analysis, lsb_entropy
+from .lsb_analyzer import lsb_analysis, lsb_entropy_score
 from ..common.image_utils import validate_image_path
 
 
