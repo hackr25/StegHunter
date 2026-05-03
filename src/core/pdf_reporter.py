@@ -487,6 +487,81 @@ class PDFReporter:
 
         elements.append(Paragraph("Analyst Note", self.heading_style))
         elements.append(disc_table)
+        elements.append(PageBreak())
+        
+        # =====================================================
+        # PAGE 5 — RECOMMENDATIONS & ACTION ITEMS
+        # =====================================================
+        elements.append(Paragraph("Recommendations & Next Steps", self.title_style))
+        elements.append(Spacer(1, 0.15 * inch))
+        
+        # Risk level box
+        risk_label = self._risk_label(final_score)
+        risk_colors = {
+            "CRITICAL": "#d32f2f",
+            "HIGH": "#f57c00",
+            "MODERATE": "#fbc02d",
+            "LOW": "#388e3c",
+            "MINIMAL": "#1976d2"
+        }
+        risk_color = risk_colors.get(risk_label, "#1976d2")
+        
+        risk_box = Table([[
+            Paragraph(f"<b>RISK LEVEL: {risk_label}</b>", self.heading_style)
+        ]], colWidths=[170*mm])
+        risk_box.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(risk_color)),
+            ('TEXTCOLOR', (0,0), (-1,-1), colors.white),
+            ('BOX', (0,0), (-1,-1), 2, colors.HexColor(risk_color)),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(risk_box)
+        elements.append(Spacer(1, 0.15 * inch))
+        
+        # Action items based on verdict
+        recommendations = self._generate_recommendations(verdict, final_score)
+        for rec in recommendations:
+            elements.append(Paragraph(rec, self.normal_style))
+        
+        elements.append(Spacer(1, 0.2 * inch))
+        elements.append(Paragraph("Detailed Technical Findings", self.heading_style))
+        elements.append(Spacer(1, 0.1 * inch))
+        
+        # Detailed findings table
+        findings = self._generate_detailed_findings(analysis_results)
+        if findings:
+            for finding in findings:
+                elements.append(Paragraph(finding, self.normal_style))
+                elements.append(Spacer(1, 0.08 * inch))
+        else:
+            elements.append(Paragraph("No detailed findings available.", self.normal_style))
+        
+        elements.append(Spacer(1, 0.2 * inch))
+        elements.append(Paragraph("Summary Statistics", self.heading_style))
+        
+        # Statistics table
+        stats_data = [
+            ["Total Detection Methods", str(len(analysis_results.get("methods", {})))],
+            ["Average Anomaly Score", f"{final_score:.2f}/100"],
+            ["Confidence Level", f"{confidence:.2f}%"],
+            ["Analysis Timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+        ]
+        
+        stats_table = Table(stats_data, colWidths=[80*mm, 85*mm])
+        stats_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0B5394")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('BACKGROUND', (0,1), (-1,-1), colors.HexColor("#F0F0F0")),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ]))
+        elements.append(stats_table)
 
         # BUILD PDF
         doc.build(elements, onFirstPage=self._draw_footer, onLaterPages=self._draw_footer)
