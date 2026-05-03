@@ -1,16 +1,15 @@
 """
-Model Training Dialog for StegHunter - Enhanced Modern Design
+Model Training Dialog for StegHunter
 """
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
                              QProgressBar, QTextEdit, QFileDialog, QCheckBox, QComboBox,
                              QGroupBox, QLineEdit, QDoubleSpinBox, QSpinBox, QMessageBox,
-                             QListWidget, QTableWidget, QTableWidgetItem, QScrollArea, QWidget)
+                             QListWidget, QTableWidget, QTableWidgetItem)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtGui import QFont
 from pathlib import Path
 import time
 from src.core.ml_classifier import MLSteganalysisClassifier
-from src.gui.modern_components import ModernButton, ModernCard, StatusIndicator, SectionHeader
 
 class ModelTrainingWorker(QThread):
     """Worker thread for model training"""
@@ -129,39 +128,19 @@ class TrainModelDialog(QDialog):
         self.init_ui()
     
     def init_ui(self):
-        """Initialize the user interface with modern design"""
-        self.setWindowTitle("🎓 Train ML Models - StegHunter")
-        self.setGeometry(200, 200, 900, 1000)
-        self.setStyleSheet("QDialog { background-color: #1a1a2e; }")
+        """Initialize the user interface"""
+        layout = QVBoxLayout()
         
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Header
-        header = SectionHeader("🎯 Model Training Configuration")
-        main_layout.addWidget(header)
-        
-        # Create scroll area for content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { background-color: #1a1a2e; border: none; }")
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout()
-        scroll_layout.setSpacing(15)
-        
-        # Training Data Selection Card
-        data_group = ModernCard("📁 Training Data Selection")
+        # Training Data Selection
+        data_group = QGroupBox("Training Data")
         data_layout = QVBoxLayout()
         
         # Clean images
         clean_layout = QHBoxLayout()
         self.clean_label = QLabel("Clean Images Directory:")
-        self.clean_label.setStyleSheet("color: #e0e0e0; font-weight: bold;")
         self.clean_path = QLineEdit()
         self.clean_path.setPlaceholderText("Select directory with clean images")
-        clean_browse = ModernButton("Browse", "primary")
-        clean_browse.setMaximumWidth(100)
+        clean_browse = QPushButton("Browse...")
         clean_browse.clicked.connect(self.select_clean_directory)
         clean_layout.addWidget(self.clean_label)
         clean_layout.addWidget(self.clean_path)
@@ -171,11 +150,9 @@ class TrainModelDialog(QDialog):
         # Stego images
         stego_layout = QHBoxLayout()
         self.stego_label = QLabel("Stego Images Directory:")
-        self.stego_label.setStyleSheet("color: #e0e0e0; font-weight: bold;")
         self.stego_path = QLineEdit()
         self.stego_path.setPlaceholderText("Select directory with stego images")
-        stego_browse = ModernButton("Browse", "primary")
-        stego_browse.setMaximumWidth(100)
+        stego_browse = QPushButton("Browse...")
         stego_browse.clicked.connect(self.select_stego_directory)
         stego_layout.addWidget(self.stego_label)
         stego_layout.addWidget(self.stego_path)
@@ -183,20 +160,17 @@ class TrainModelDialog(QDialog):
         data_layout.addLayout(stego_layout)
         
         # Video training option
-        self.use_video_check = QCheckBox("🎬 Include Video Training Data")
-        self.use_video_check.setStyleSheet("color: #00d4ff; font-weight: bold;")
+        self.use_video_check = QCheckBox("Include Video Training Data")
         self.use_video_check.stateChanged.connect(self.toggle_video_fields)
         data_layout.addWidget(self.use_video_check)
         
         # Clean videos (hidden by default)
         clean_video_layout = QHBoxLayout()
         self.clean_video_label = QLabel("Clean Videos Directory:")
-        self.clean_video_label.setStyleSheet("color: #e0e0e0; font-weight: bold;")
         self.clean_video_path = QLineEdit()
         self.clean_video_path.setPlaceholderText("Select directory with clean videos (MP4, AVI, MOV, etc.)")
         self.clean_video_path.setEnabled(False)
-        clean_video_browse = ModernButton("Browse", "primary")
-        clean_video_browse.setMaximumWidth(100)
+        clean_video_browse = QPushButton("Browse...")
         clean_video_browse.clicked.connect(self.select_clean_video_directory)
         clean_video_browse.setEnabled(False)
         self.clean_video_browse = clean_video_browse
@@ -211,12 +185,10 @@ class TrainModelDialog(QDialog):
         # Stego videos (hidden by default)
         stego_video_layout = QHBoxLayout()
         self.stego_video_label = QLabel("Stego Videos Directory:")
-        self.stego_video_label.setStyleSheet("color: #e0e0e0; font-weight: bold;")
         self.stego_video_path = QLineEdit()
         self.stego_video_path.setPlaceholderText("Select directory with stego videos (optional)")
         self.stego_video_path.setEnabled(False)
-        stego_video_browse = ModernButton("Browse", "primary")
-        stego_video_browse.setMaximumWidth(100)
+        stego_video_browse = QPushButton("Browse...")
         stego_video_browse.clicked.connect(self.select_stego_video_directory)
         stego_video_browse.setEnabled(False)
         self.stego_video_browse = stego_video_browse
@@ -231,28 +203,26 @@ class TrainModelDialog(QDialog):
         # Output model
         output_layout = QHBoxLayout()
         self.output_label = QLabel("Output Model File:")
-        self.output_label.setStyleSheet("color: #e0e0e0; font-weight: bold;")
         self.output_path = QLineEdit()
         self.output_path.setPlaceholderText("models/steg_model.pkl")
         self.output_path.setText("models/steg_model.pkl")
-        output_browse = ModernButton("Browse", "primary")
-        output_browse.setMaximumWidth(100)
+        output_browse = QPushButton("Browse...")
         output_browse.clicked.connect(self.select_output_file)
         output_layout.addWidget(self.output_label)
         output_layout.addWidget(self.output_path)
         output_layout.addWidget(output_browse)
         data_layout.addLayout(output_layout)
         
-        data_group.add_layout(data_layout)
-        scroll_layout.addWidget(data_group)
+        data_group.setLayout(data_layout)
+        layout.addWidget(data_group)
         
-        # Training Parameters Card
-        params_group = ModernCard("⚙️ Training Parameters")
+        # Training Parameters
+        params_group = QGroupBox("Training Parameters")
         params_layout = QVBoxLayout()
         
         # Test size
         test_layout = QHBoxLayout()
-        test_layout.addWidget(QLabel("Test Size Ratio:"))
+        test_layout.addWidget(QLabel("Test Size:"))
         self.test_size_spin = QDoubleSpinBox()
         self.test_size_spin.setRange(0.1, 0.5)
         self.test_size_spin.setSingleStep(0.05)
@@ -263,88 +233,62 @@ class TrainModelDialog(QDialog):
         params_layout.addLayout(test_layout)
         
         # Verbose option
-        self.verbose_check = QCheckBox("📊 Show Feature Importance (Verbose)")
-        self.verbose_check.setStyleSheet("color: #e0e0e0;")
+        self.verbose_check = QCheckBox("Verbose Output (show feature importance)")
         self.verbose_check.setChecked(True)
         params_layout.addWidget(self.verbose_check)
         
-        params_group.add_layout(params_layout)
-        scroll_layout.addWidget(params_group)
+        params_group.setLayout(params_layout)
+        layout.addWidget(params_group)
         
-        # Training Status Card
-        status_group = ModernCard("📈 Training Progress")
-        status_layout = QVBoxLayout()
+        # Training Section
+        train_group = QGroupBox("Model Training")
+        train_layout = QVBoxLayout()
         
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
-        self.progress_bar.setMinimumHeight(25)
-        status_layout.addWidget(self.progress_bar)
+        train_layout.addWidget(self.progress_bar)
         
-        # Status indicator
-        self.status_indicator = StatusIndicator("Ready to start training", "info")
-        status_layout.addWidget(self.status_indicator)
+        # Status label
+        self.status_label = QLabel("Ready to start training")
+        self.status_label.setStyleSheet("QLabel { color: #666; font-style: italic; }")
+        train_layout.addWidget(self.status_label)
         
-        # Log output with better styling
-        log_label = QLabel("📝 Training Log:")
-        log_label.setStyleSheet("color: #00d4ff; font-weight: bold;")
-        status_layout.addWidget(log_label)
-        
+        # Log output
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
-        self.log_text.setMinimumHeight(100)
-        self.log_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #0f3460;
-                color: #00d4ff;
-                border: 2px solid #00d4ff;
-                border-radius: 5px;
-                font-family: Consolas, monospace;
-                font-size: 10px;
-                padding: 5px;
-            }
-        """)
-        status_layout.addWidget(self.log_text)
-        
-        status_group.add_layout(status_layout)
-        scroll_layout.addWidget(status_group)
-        
-        scroll_widget.setLayout(scroll_layout)
-        scroll.setWidget(scroll_widget)
-        main_layout.addWidget(scroll)
+        self.log_text.setMaximumHeight(200)
+        self.log_text.setStyleSheet("QTextEdit { font-family: Consolas, monospace; font-size: 10px; }")
+        train_layout.addWidget(self.log_text)
         
         # Buttons
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(10)
         
-        self.train_btn = ModernButton("🚀 Start Training", "success")
-        self.train_btn.setMinimumHeight(40)
+        self.train_btn = QPushButton("Start Training")
         self.train_btn.clicked.connect(self.start_training)
         button_layout.addWidget(self.train_btn)
         
-        self.cancel_btn = ModernButton("✕ Cancel", "danger")
-        self.cancel_btn.setMinimumHeight(40)
+        self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_btn)
         
-        main_layout.addLayout(button_layout)
+        train_layout.addLayout(button_layout)
+        train_group.setLayout(train_layout)
+        layout.addWidget(train_group)
         
         # Results Section
-        results_group = ModernCard("✅ Training Results")
+        results_group = QGroupBox("Training Results")
         results_layout = QVBoxLayout()
         
         self.results_table = QTableWidget(0, 2)
         self.results_table.setHorizontalHeaderLabels(["Metric", "Value"])
         self.results_table.horizontalHeader().setStretchLastSection(True)
-        self.results_table.setMaximumHeight(200)
-        self.results_table.setMinimumHeight(100)
         results_layout.addWidget(self.results_table)
         
-        results_group.add_layout(results_layout)
-        main_layout.addWidget(results_group)
+        results_group.setLayout(results_layout)
+        layout.addWidget(results_group)
         
-        self.setLayout(main_layout)
+        self.setLayout(layout)
     
     def select_clean_directory(self):
         """Select directory with clean images"""
@@ -459,10 +403,9 @@ class TrainModelDialog(QDialog):
         self.progress_bar.setValue(value)
     
     def add_log(self, message):
-        """Add message to log with timestamp"""
+        """Add message to log"""
         timestamp = time.strftime("%H:%M:%S")
-        formatted_msg = f"[{timestamp}] {message}"
-        self.log_text.append(formatted_msg)
+        self.log_text.append(f"[{timestamp}] {message}")
         # Auto-scroll to bottom
         self.log_text.verticalScrollBar().setValue(
             self.log_text.verticalScrollBar().maximum()
@@ -473,9 +416,7 @@ class TrainModelDialog(QDialog):
         self.progress_bar.setValue(100)
         
         training_mode = "Images + Videos" if self.use_video_check.isChecked() else "Images Only"
-        status_text = f"✅ Training completed successfully! (Mode: {training_mode})"
-        self.status_indicator.update_status("success")
-        self.status_indicator.set_text(status_text)
+        self.status_label.setText(f"Training completed successfully! (Mode: {training_mode})")
         self.add_log(f"✓ Model training completed successfully ({training_mode})")
         
         # Display results
@@ -486,17 +427,11 @@ class TrainModelDialog(QDialog):
         self.cancel_btn.setEnabled(True)
         
         # Show success message
-        QMessageBox.information(
-            self, 
-            "✅ Training Successful",
-            f"Model trained and saved to:\n{self.output_path.text()}\n\nTraining Mode: {training_mode}"
-        )
+        QMessageBox.information(self, "Success", f"Model trained and saved to:\n{self.output_path.text()}\n\nTraining Mode: {training_mode}")
     
     def training_error(self, error_message):
         """Handle training errors"""
-        status_text = f"❌ Error: {error_message}"
-        self.status_indicator.update_status("error")
-        self.status_indicator.set_text(status_text)
+        self.status_label.setText(f"Error: {error_message}")
         self.add_log(f"✗ Error: {error_message}")
         
         # Re-enable UI
@@ -504,7 +439,7 @@ class TrainModelDialog(QDialog):
         self.cancel_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         
-        QMessageBox.critical(self, "❌ Training Failed", f"Training failed:\n{error_message}")
+        QMessageBox.critical(self, "Error", f"Training failed:\n{error_message}")
     
     def display_results(self, metrics):
         """Display training results in table"""
