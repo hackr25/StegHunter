@@ -1135,7 +1135,7 @@ class MainWindow(QMainWindow):
             elif method == 'comprehensive':
                 heatmaps = generator.generate_comprehensive_heatmap(self.current_image_path)
                 self.status_bar.showMessage(f"Generated {len(heatmaps)} heatmap(s)")
-                heatmap = heatmaps[0] if heatmaps else None
+                heatmap = heatmaps.get('combined') if heatmaps else None
             elif method == 'ml':
                 model_path = 'models/steg_model.pkl'
                 if not Path(model_path).exists():
@@ -1173,7 +1173,7 @@ class MainWindow(QMainWindow):
                 # Switch to heatmap tab
                 self.results_tab.setCurrentIndex(2)
             else:
-                self.show_error(f"Heatmap file not created: {output_path}")
+                self.show_error(f"Failed to generate heatmap")
                 
         except Exception as e:
             self.status_bar.showMessage(f"Error generating heatmap: {e}")
@@ -1296,10 +1296,9 @@ class MainWindow(QMainWindow):
                 if hasattr(self, 'last_heatmap_path'):
                     heatmap_path = self.last_heatmap_path
                 
-                pdf_path = reporter.create_single_image_report(
-                    self.current_image_path,
+                pdf_path = reporter.generate_report(
                     self.analysis_results,
-                    heatmap_path,
+                    self.current_image_path,
                     file_path
                 )
                 
