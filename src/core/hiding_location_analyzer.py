@@ -158,7 +158,7 @@ class HidingLocationAnalyzer:
                 # Fill heatmap for this window
                 end_i = min(i + self.window_size, h)
                 end_j = min(j + self.window_size, w)
-                heatmap[i:end_i, j:end_j] = max(heatmap[i:end_i, j:end_j], suspicion)
+                heatmap[i:end_i, j:end_j] = np.maximum(heatmap[i:end_i, j:end_j], suspicion)
         
         # Normalize heatmap
         if heatmap.max() > 0:
