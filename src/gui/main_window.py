@@ -2,12 +2,15 @@
 Main Application Window for SteHunter GUI
 """
 import warnings
+import logging
 import numpy as np
 
 # Suppress NumPy warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 warnings.filterwarnings('ignore', message='invalid value encountered in divide')
 np.seterr(divide='ignore', invalid='ignore')
+
+logger = logging.getLogger(__name__)
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QFileDialog, QTabWidget,
@@ -1295,12 +1298,12 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Video analysis complete")
     
     def update_video_summary(self, results):
-        """Update summary tab with video analysis results"""
+        """Update summary tab with comprehensive video analysis results"""
         try:
             filename = results.get('filename', 'Unknown')
             frame_count = results.get('frame_count', 0)
             analyzed_frames = results.get('analyzed_frames', 0)
-            overall_score = results.get('overall_score', 0)
+            overall_score = results.get('final_suspicion_score', results.get('overall_score', 0))
             analysis_time = results.get('analysis_time', 0)
             
             # Get risk level
@@ -1317,6 +1320,39 @@ class MainWindow(QMainWindow):
                 risk_text = "CRITICAL ALERT"
                 color = "#8e0000"
             
+            # Extract technique statistics from frame results
+            techniques_summary = {}
+            if results.get('frame_results'):
+                for technique in ['lsb', 'ela', 'jpeg_ghost', 'noise', 'color_space', 'chi_square', 'pixel_differencing']:
+                    scores = []
+                    for frame in results.get('frame_results', []):
+                        technique_data = frame.get('techniques', {}).get(technique, {})
+                        score = technique_data.get('suspicion_score', 0.0)
+                        if score > 0:
+                            scores.append(score)
+                    
+                    if scores:
+                        avg_score = np.mean(scores)
+                        max_score = np.max(scores)
+                        techniques_summary[technique.upper()] = {
+                            'avg': avg_score,
+                            'max': max_score,
+                            'detections': len(scores)
+                        }
+            
+            # Build comprehensive summary
+            technique_details = ""
+            if techniques_summary:
+                technique_details = "\n🔬 TECHNIQUE BREAKDOWN:\n"
+                for tech, stats in techniques_summary.items():
+                    technique_details += f"   • {tech}: Avg {stats['avg']:.1f} | Max {stats['max']:.1f} | Detections {stats['detections']}\n"
+            
+            # Count anomalies
+            anomaly_count = 0
+            if results.get('temporal_anomalies'):
+                for anomalies in results.get('temporal_anomalies', {}).values():
+                    anomaly_count += len(anomalies)
+            
             summary_text = f"""
             ═══════════════════════════════════════════════════════════
             📹 VIDEO FORENSICS ANALYSIS REPORT
@@ -1332,10 +1368,8 @@ class MainWindow(QMainWindow):
             ═══════════════════════════════════════════════════════════
             
             Overall Suspicion Score: {overall_score:.2f}/100
-            
-            LSB Entropy Timeline: Available in Video Analysis tab
-            Temporal Anomalies: {len(results.get('temporal_anomalies', []))} detected
-            
+            Temporal Anomalies Detected: {anomaly_count}
+            {technique_details}
             ═══════════════════════════════════════════════════════════
             """
             
@@ -1354,6 +1388,7 @@ class MainWindow(QMainWindow):
             self.details_text.setPlainText(summary_text)
             
         except Exception as e:
+            logger.warning(f"Error processing video results: {e}")
             self.details_text.setPlainText(f"Error processing video results: {e}")
     
     def analysis_error(self, error_msg):
