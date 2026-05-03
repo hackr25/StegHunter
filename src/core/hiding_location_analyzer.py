@@ -337,7 +337,7 @@ class HidingLocationAnalyzer:
     def generate_location_heatmap(self, image_path: str) -> np.ndarray:
         """
         Generate heatmap showing WHERE steganography is likely hidden
-        Returns only the heatmap array (no file saving)
+        Returns colored heatmap array (no file saving)
         """
         analysis = self.analyze_hiding_locations(image_path)
         heatmap = analysis['region_hotspots']['heatmap']
@@ -354,11 +354,16 @@ class HidingLocationAnalyzer:
         h, w = img_array.shape[:2]
         heatmap_resized = cv2.resize(heatmap, (w, h))
         
-        # Convert heatmap to color (jet colormap)
+        # Convert to 8-bit format first
         heatmap_uint8 = (heatmap_resized / 100 * 255).astype(np.uint8)
-        heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         
-        # Blend with original image
-        blended = cv2.addWeighted(img_array, 0.6, heatmap_colored, 0.4, 0)
+        # Apply colormap (JET: blue=cold to red=hot)
+        heatmap_colored_bgr = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+        
+        # Convert BGR (opencv) to RGB (PIL/standard)
+        heatmap_colored = cv2.cvtColor(heatmap_colored_bgr, cv2.COLOR_BGR2RGB)
+        
+        # Blend with original image - heatmap is weighted 0.5 for visibility
+        blended = cv2.addWeighted(img_array, 0.5, heatmap_colored, 0.5, 0)
         
         return blended
