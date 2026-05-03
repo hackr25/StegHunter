@@ -638,25 +638,41 @@ def video_analyze(ctx, video_path: str, heatmap: Optional[str], output: Optional
             progress.add_task("[cyan]Analyzing video frames...", total=None)
             
             analyzer = VideoAnalyzer()
-            result = analyzer.analyze(video_path, generate_heatmap=heatmap is not None)
+            result = analyzer.analyze_video(video_path)
         
-        if heatmap:
-            result.save_heatmap(heatmap)
-            print_success(f"Heatmap saved to {heatmap}")
+        if result.get('error'):
+            print_error(f"Video analysis error: {result['error']}")
+            sys.exit(1)
         
         if output:
-            save_results_json([convert_numpy_types(result.to_dict())], output)
+            save_results_json([convert_numpy_types(result)], output)
             print_success(f"Results saved to {output}")
         
-        score = result.final_score
+        score = result.get('final_suspicion_score', 0)
         status = "🚨 SUSPICIOUS" if score > 50 else "✅ CLEAN"
         
+        # Display comprehensive results
+        frame_count = result.get('analyzed_frames', 0)
+        anomalies = sum(len(v) for v in result.get('temporal_anomalies', {}).values())
+        
         console.print(Panel(
-            f"Suspicion Score: [bold yellow]{score:.1f}%[/bold yellow]\n"
-            f"Status: [bold]{status}[/bold]",
-            title="Video Analysis Result",
+            f"Suspicion Score: [bold yellow]{score:.2f}%[/bold yellow]\n"
+            f"Status: [bold]{status}[/bold]\n"
+            f"Frames Analyzed: [cyan]{frame_count}[/cyan]\n"
+            f"Temporal Anomalies: [red]{anomalies}[/red]\n"
+            f"Analysis Time: [green]{result.get('analysis_time', 0):.2f}s[/green]",
+            title="📹 Video Forensics Analysis Result",
             border_style="cyan"
         ))
+        
+        # Display technique breakdown if verbose
+        if verbose:
+            if result.get('frame_results'):
+                console.print("[bold cyan]Per-Technique Summary:[/bold cyan]")
+                for frame in result['frame_results'][:1]:  # Show first frame as example
+                    for technique, data in frame.get('techniques', {}).items():
+                        score = data.get('suspicion_score', 0)
+                        console.print(f"  • {technique.upper()}: {score:.1f}")
         
         print_success("Video analysis complete")
     
