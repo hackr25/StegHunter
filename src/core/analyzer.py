@@ -16,6 +16,7 @@ from PIL import Image
 from .lsb_analyzer import lsb_analysis
 from .statistical_tests import chi_square_test, pixel_value_differencing
 from .reasoning_engine import ReasoningEngine
+from .hiding_location_analyzer import HidingLocationAnalyzer
 from ..common.constants import DEFAULT_WEIGHTS, SUPPORTED_FORMATS, JPEG_FORMATS
 from ..common.timeout_handler import TimeoutHandler, TimeoutException
 
@@ -37,6 +38,7 @@ class SteganographyAnalyzer:
     def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         self.supported_formats = SUPPORTED_FORMATS
         self._config = config
+        self.location_analyzer = HidingLocationAnalyzer()
 
     # ------------------------------------------------------------------
     # Public API
@@ -312,6 +314,13 @@ class SteganographyAnalyzer:
         except Exception as e:
             results["explanation"] = {"error": f"Reasoning engine failed: {str(e)}"}
             logger.warning(f"Reasoning engine failed: {e}", exc_info=True)
+        
+        # Analyze hiding locations
+        try:
+            results["hiding_locations"] = self.location_analyzer.analyze_hiding_locations(str(path))
+        except Exception as e:
+            results["hiding_locations"] = {"error": f"Hiding location analysis failed: {str(e)}"}
+            logger.warning(f"Hiding location analysis failed: {e}", exc_info=True)
             
         results["analysis_time"] = round(time.time() - start, 3)
         
