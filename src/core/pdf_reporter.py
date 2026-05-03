@@ -590,3 +590,103 @@ class PDFReporter:
             return text
         except Exception:
             return default
+
+    def _risk_label(self, score):
+        """Determine risk level from score"""
+        if score >= 85:
+            return "CRITICAL"
+        elif score >= 70:
+            return "HIGH"
+        elif score >= 50:
+            return "MODERATE"
+        elif score >= 25:
+            return "LOW"
+        else:
+            return "MINIMAL"
+
+    def _generate_recommendations(self, verdict, score):
+        """Generate actionable recommendations based on verdict and score"""
+        recommendations = []
+        
+        if "DETECTED" in verdict or score >= 85:
+            recommendations.extend([
+                "🔴 <b>CRITICAL ACTION REQUIRED:</b>",
+                "• Isolate file from network immediately",
+                "• Preserve file for forensic investigation",
+                "• Contact security team for further analysis",
+                "• Document chain of custody",
+                "",
+            ])
+        elif score >= 70:
+            recommendations.extend([
+                "🟠 <b>HIGH PRIORITY ACTIONS:</b>",
+                "• Quarantine file for investigation",
+                "• Conduct detailed forensic examination",
+                "• Review file provenance and transmission logs",
+                "• Interview relevant personnel",
+                "",
+            ])
+        elif score >= 50:
+            recommendations.extend([
+                "🟡 <b>MODERATE PRECAUTIONS:</b>",
+                "• Monitor file for suspicious behavior",
+                "• Validate file integrity through secondary methods",
+                "• Review context of file acquisition",
+                "• Schedule follow-up analysis",
+                "",
+            ])
+        elif score >= 25:
+            recommendations.extend([
+                "🟢 <b>LOW RISK - ROUTINE MONITORING:</b>",
+                "• File presents minimal risk indicators",
+                "• Continue standard security protocols",
+                "• Archive for reference if needed",
+                "",
+            ])
+        else:
+            recommendations.extend([
+                "🔵 <b>NO STRONG EVIDENCE DETECTED:</b>",
+                "• File passes standard steganography screening",
+                "• Proceed with normal operations",
+                "• Re-scan periodically if risk profile changes",
+                "",
+            ])
+        
+        return recommendations
+
+    def _generate_detailed_findings(self, analysis_results):
+        """Extract detailed technical findings from analysis results"""
+        findings = []
+        
+        try:
+            methods = analysis_results.get("methods", {})
+            
+            for method_name, method_data in methods.items():
+                if isinstance(method_data, dict):
+                    score = method_data.get("score", 0)
+                    confidence = method_data.get("confidence", 0)
+                    finding = f"<b>{method_name}:</b> Score {score:.2f}/100, Confidence {confidence:.2f}%"
+                    findings.append(finding)
+            
+            # Add phase scores if available
+            if "phase_scores" in analysis_results:
+                phases = analysis_results["phase_scores"]
+                findings.append("")
+                findings.append("<b>Phase Breakdown:</b>")
+                for phase, score in phases.items():
+                    findings.append(f"  • {phase}: {score:.2f}/100")
+            
+            # Add hiding locations if available
+            if "hiding_locations" in analysis_results and analysis_results["hiding_locations"]:
+                findings.append("")
+                findings.append("<b>Suspected Hiding Locations:</b>")
+                locs = analysis_results["hiding_locations"]
+                if isinstance(locs, dict):
+                    for loc_type, loc_data in locs.items():
+                        if loc_data:
+                            findings.append(f"  • {loc_type}: Detected")
+            
+        except Exception:
+            pass
+        
+        return findings if findings else []
