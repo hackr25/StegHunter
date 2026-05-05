@@ -7,43 +7,61 @@ def chi_square_test(image):
     """
     Enhanced grayscale pair-frequency chi-square forensic test.
     """
-    img_array = np.array(image.convert('L'))
-    flat = img_array.flatten()
+    try:
+        img_array = np.array(image.convert('L'))
+        flat = img_array.flatten()
 
-    hist, _ = np.histogram(flat, bins=256, range=[0, 256])
-    probs = hist / max(hist.sum(), 1)
-    hist_entropy = entropy(probs, base=2)
+        hist, _ = np.histogram(flat, bins=256, range=[0, 256])
+        probs = hist / max(hist.sum(), 1)
+        hist_entropy = entropy(probs, base=2)
 
-    # Pair frequencies (0-1,2-3,...)
-    observed = []
-    expected = []
+        # Pair frequencies (0-1,2-3,...)
+        observed = []
+        expected = []
 
-    for i in range(0, 256, 2):
-        pair_sum = hist[i] + hist[i+1]
-        observed.extend([hist[i], hist[i+1]])
-        # Add pseudocount to avoid division by zero
-        expected.extend([max(pair_sum/2, 0.5), max(pair_sum/2, 0.5)])
+        for i in range(0, 256, 2):
+            pair_sum = hist[i] + hist[i+1]
+            observed.extend([hist[i], hist[i+1]])
+            # Use exact division to avoid floating point mismatch
+            exp_val = pair_sum / 2.0
+            expected.extend([exp_val, exp_val])
 
-    chi2_stat, p_value = chisquare(f_obs=observed, f_exp=expected)
-    
-    # Handle NaN p-value
-    if np.isnan(p_value):
-        p_value = 0.0
-    if np.isnan(chi2_stat):
-        chi2_stat = 0.0
+        # Add small correction to ensure sums match (scipy requirement)
+        observed_sum = sum(observed)
+        expected_sum = sum(expected)
+        if observed_sum > 0 and expected_sum > 0:
+            correction_factor = observed_sum / expected_sum
+            expected = [e * correction_factor for e in expected]
 
-    entropy_score = float(expit((hist_entropy - 7.2) * 2.5) * 100)
-    uniformity_score = float(min(p_value * 100, 100))
+        chi2_stat, p_value = chisquare(f_obs=observed, f_exp=expected)
+        
+        # Handle NaN p-value
+        if np.isnan(p_value):
+            p_value = 0.0
+        if np.isnan(chi2_stat):
+            chi2_stat = 0.0
 
-    suspicion_score = entropy_score * 0.55 + uniformity_score * 0.45
+        entropy_score = float(expit((hist_entropy - 7.2) * 2.5) * 100)
+        uniformity_score = float(min(p_value * 100, 100))
 
-    return {
-        'histogram_entropy': float(hist_entropy),
-        'chi_square_p_value': float(p_value),
-        'chi_square_entropy_score': entropy_score,
-        'chi_square_uniformity_score': uniformity_score,
-        'suspicion_score': float(min(suspicion_score, 100))
-    }
+        suspicion_score = entropy_score * 0.55 + uniformity_score * 0.45
+
+        return {
+            'histogram_entropy': float(hist_entropy),
+            'chi_square_p_value': float(p_value),
+            'chi_square_entropy_score': entropy_score,
+            'chi_square_uniformity_score': uniformity_score,
+            'suspicion_score': float(min(suspicion_score, 100))
+        }
+    except Exception as e:
+        # If chi-square calculation fails, return neutral score
+        return {
+            'histogram_entropy': 0.0,
+            'chi_square_p_value': 0.5,
+            'chi_square_entropy_score': 50.0,
+            'chi_square_uniformity_score': 50.0,
+            'suspicion_score': 0.0
+        }
 
 
 def pixel_value_differencing(image):

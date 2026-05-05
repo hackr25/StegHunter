@@ -228,20 +228,14 @@ def analyze(ctx, image_path: str, use_ml: bool, batch: bool, recursive: bool, ou
             # Single image analysis
             print_info(f"Analyzing: {image_path}")
             
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                progress.add_task("[cyan]Processing image...", total=None)
-                # Always run comprehensive analysis; use_ml determines if ML models are included
-                result = analyzer.analyze_image(image_path)
+            # Run comprehensive analysis without progress spinner (to avoid encoding issues)
+            result = analyzer.analyze_image(image_path)
             
             result = convert_numpy_types(result)
             
             # Display result
             score = result.get("final_suspicion_score", 0)
-            status = "🚨 SUSPICIOUS" if score > 50 else "✅ CLEAN"
+            status = "[SUSPICIOUS]" if score > 50 else "[CLEAN]"
             
             # Get reasoning if available
             reasoning = result.get('forensic_reasoning', {})
