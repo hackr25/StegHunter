@@ -9,6 +9,16 @@ Usage:
 """
 from __future__ import annotations
 
+import os
+import warnings
+
+# Suppress TensorFlow and oneDNN warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logging
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*oneDNN custom operations.*')
+
 import json
 import sys
 from pathlib import Path
@@ -180,7 +190,8 @@ def analyze(ctx, image_path: str, use_ml: bool, batch: bool, recursive: bool, ou
                 
                 for img_file in image_files:
                     try:
-                        result = analyzer.analyze_image(str(img_file)) if use_ml else analyzer.basic_analysis(str(img_file))
+                        # Always run comprehensive analysis
+                        result = analyzer.analyze_image(str(img_file))
                         results.append(convert_numpy_types(result))
                     except Exception as e:
                         print_warning(f"Failed to analyze {img_file}: {e}")
@@ -219,7 +230,8 @@ def analyze(ctx, image_path: str, use_ml: bool, batch: bool, recursive: bool, ou
                 console=console,
             ) as progress:
                 progress.add_task("[cyan]Processing image...", total=None)
-                result = analyzer.analyze_image(image_path) if use_ml else analyzer.basic_analysis(image_path)
+                # Always run comprehensive analysis; use_ml determines if ML models are included
+                result = analyzer.analyze_image(image_path)
             
             result = convert_numpy_types(result)
             
@@ -227,10 +239,14 @@ def analyze(ctx, image_path: str, use_ml: bool, batch: bool, recursive: bool, ou
             score = result.get("final_suspicion_score", 0)
             status = "🚨 SUSPICIOUS" if score > 50 else "✅ CLEAN"
             
+            # Get reasoning if available
+            reasoning = result.get('forensic_reasoning', {})
+            reasoning_text = reasoning.get('summary', 'Analysis complete') if isinstance(reasoning, dict) else str(reasoning)
+            
             console.print(Panel(
                 f"Suspicion Score: [bold yellow]{score:.1f}%[/bold yellow]\n"
                 f"Status: [bold]{status}[/bold]\n"
-                f"Analysis: {result.get('explanation', 'N/A')}",
+                f"Analysis: {reasoning_text}",
                 title="Analysis Result",
                 border_style="cyan"
             ))
