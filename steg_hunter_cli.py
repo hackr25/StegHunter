@@ -35,7 +35,11 @@ from src.common.utils import collect_image_files, convert_numpy_types, save_resu
 from src.common.exceptions import InvalidImageError, ConfigError, AnalysisError
 from src.core.analyzer import SteganographyAnalyzer
 
-console = Console()
+# Fix for Windows Unicode encoding issues
+try:
+    console = Console(force_terminal=False, legacy_windows=True)
+except Exception:
+    console = Console(force_terminal=False)
 
 # ASCII Banner with enhanced graphics (Windows-compatible)
 BANNER = r"""
@@ -98,22 +102,22 @@ def cli(ctx, verbose, quiet):
 
 def print_success(message: str):
     """Print success message."""
-    console.print(f"✓ {message}", style="bold green")
+    console.print(f"[OK] {message}", style="bold green")
 
 
 def print_error(message: str):
     """Print error message."""
-    console.print(f"✗ {message}", style="bold red")
+    console.print(f"[ERROR] {message}", style="bold red")
 
 
 def print_info(message: str):
     """Print info message."""
-    console.print(f"ℹ {message}", style="bold blue")
+    console.print(f"[INFO] {message}", style="bold blue")
 
 
 def print_warning(message: str):
     """Print warning message."""
-    console.print(f"⚠ {message}", style="bold yellow")
+    console.print(f"[WARN] {message}", style="bold yellow")
 
 
 # ---------------------------------------------------------------------------
