@@ -210,19 +210,17 @@ def analyze(ctx, image_path: str, use_ml: bool, batch: bool, recursive: bool, ou
                     save_results_json(results, output)
                 print_success(f"Results saved to {output}")
             else:
-                # Display results table
-                table = Table(title="Batch Analysis Results", show_header=True, header_style="bold magenta")
-                table.add_column("File", style="cyan")
-                table.add_column("Suspicion Score", style="yellow")
-                table.add_column("Status", style="green")
-                
+                # Display results in simple text format
+                console.print("\nBatch Analysis Results:", style="cyan")
+                print("-" * 70)
+                console.print(f"  {'File':<30s} {'Suspicion Score':<20s} {'Status':<15s}")
+                print("-" * 70)
                 for result in results:
                     filename = result.get("filename", "Unknown")
                     score = result.get("final_suspicion_score", 0)
-                    status = "⚠ Suspicious" if score > 50 else "✓ Clean"
-                    table.add_row(filename, f"{score:.1f}%", status)
-                
-                console.print(table)
+                    status = "Suspicious" if score > 50 else "Clean"
+                    console.print(f"  {filename[:28]:<30s} {score:>6.1f}%{'':<13s} [{status}]")
+                print("-" * 70)
         
         else:
             # Single image analysis
@@ -251,17 +249,13 @@ def analyze(ctx, image_path: str, use_ml: bool, batch: bool, recursive: bool, ou
             
             # Show detailed methods if available
             if "methods" in result:
-                table = Table(title="Detection Methods", show_header=True, header_style="bold magenta")
-                table.add_column("Method", style="cyan")
-                table.add_column("Score", style="yellow")
-                table.add_column("Status", style="green")
-                
+                console.print("\nDetection Methods:", style="cyan")
+                print("-" * 50)
                 for method_name, method_result in result["methods"].items():
                     method_score = method_result.get("suspicion_score", 0)
-                    method_status = "⚠" if method_score > 50 else "✓"
-                    table.add_row(method_name, f"{method_score:.1f}%", method_status)
-                
-                console.print(table)
+                    method_status = "WARN" if method_score > 50 else "OK"
+                    console.print(f"  {method_name:30s} {method_score:6.1f}%  [{method_status}]")
+                print("-" * 50)
             
             # Save if output specified
             if output:
