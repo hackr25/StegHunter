@@ -21,9 +21,16 @@ def chi_square_test(image):
     for i in range(0, 256, 2):
         pair_sum = hist[i] + hist[i+1]
         observed.extend([hist[i], hist[i+1]])
-        expected.extend([pair_sum/2, pair_sum/2])
+        # Add pseudocount to avoid division by zero
+        expected.extend([max(pair_sum/2, 0.5), max(pair_sum/2, 0.5)])
 
     chi2_stat, p_value = chisquare(f_obs=observed, f_exp=expected)
+    
+    # Handle NaN p-value
+    if np.isnan(p_value):
+        p_value = 0.0
+    if np.isnan(chi2_stat):
+        chi2_stat = 0.0
 
     entropy_score = float(expit((hist_entropy - 7.2) * 2.5) * 100)
     uniformity_score = float(min(p_value * 100, 100))
