@@ -26,6 +26,17 @@ class ReasoningEngine:
             "png_chunk_analysis": 20.0,
         }
 
+    @staticmethod
+    def _safe_get_float(value):
+        """Safely convert value to float, handling None and NaN."""
+        if value is None:
+            return 0.0
+        try:
+            f = float(value)
+            return f if not (f != f) else 0.0  # Check for NaN
+        except (TypeError, ValueError):
+            return 0.0
+
     def generate_explanation(self, results: Dict[str, Any]) -> Dict[str, Any]:
         methods = results.get("methods", {})
         findings: List[str] = []
@@ -35,7 +46,7 @@ class ReasoningEngine:
         # LSB FORENSICS
         # ---------------------------------------------------------
         if "lsb" in methods:
-            lsb_score = methods["lsb"].get("lsb_suspicion_score", 0)
+            lsb_score = self._safe_get_float(methods["lsb"].get("lsb_suspicion_score", 0))
             if lsb_score > self.thresholds["lsb"]:
                 findings.append(
                     f"❌ LSB forensic anomaly detected ({lsb_score:.2f}%): "
@@ -43,7 +54,7 @@ class ReasoningEngine:
                 )
 
         if "rs_analysis" in methods:
-            rs_score = methods["rs_analysis"].get("suspicion_score", 0)
+            rs_score = self._safe_get_float(methods["rs_analysis"].get("suspicion_score", 0))
             if rs_score > self.thresholds["rs_analysis"]:
                 findings.append(
                     f"⚠️ RS statistical imbalance anomaly ({rs_score:.2f}%): "
@@ -51,7 +62,7 @@ class ReasoningEngine:
                 )
 
         if "spa_analysis" in methods:
-            spa_score = methods["spa_analysis"].get("suspicion_score", 0)
+            spa_score = self._safe_get_float(methods["spa_analysis"].get("suspicion_score", 0))
             if spa_score > self.thresholds["spa_analysis"]:
                 findings.append(
                     f"⚠️ Sample Pair transition anomaly ({spa_score:.2f}%): "
@@ -62,7 +73,7 @@ class ReasoningEngine:
         # CHI SQUARE / STATISTICAL
         # ---------------------------------------------------------
         if "chi_square" in methods:
-            score = methods["chi_square"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["chi_square"].get("suspicion_score", 0))
             if score > self.thresholds["chi_square"]:
                 findings.append(
                     f"⚠️ Histogram pair-frequency irregularity observed ({score:.2f}%): "
@@ -70,7 +81,7 @@ class ReasoningEngine:
                 )
 
         if "pixel_differencing" in methods:
-            score = methods["pixel_differencing"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["pixel_differencing"].get("suspicion_score", 0))
             if score > self.thresholds["pixel_differencing"]:
                 findings.append(
                     f"⚠️ Residual pixel differencing anomaly ({score:.2f}%): "
@@ -81,7 +92,7 @@ class ReasoningEngine:
         # ELA
         # ---------------------------------------------------------
         if "ela" in methods:
-            score = methods["ela"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["ela"].get("suspicion_score", 0))
             if score > self.thresholds["ela"]:
                 findings.append(
                     f"❌ Error Level Analysis inconsistency ({score:.2f}%): "
@@ -92,7 +103,7 @@ class ReasoningEngine:
         # JPEG GHOST
         # ---------------------------------------------------------
         if "jpeg_ghost" in methods:
-            score = methods["jpeg_ghost"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["jpeg_ghost"].get("suspicion_score", 0))
             if score > self.thresholds["jpeg_ghost"]:
                 findings.append(
                     f"⚠️ JPEG recompression ghost evidence ({score:.2f}%): "
@@ -103,7 +114,7 @@ class ReasoningEngine:
         # NOISE
         # ---------------------------------------------------------
         if "noise" in methods:
-            score = methods["noise"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["noise"].get("suspicion_score", 0))
             if score > self.thresholds["noise"]:
                 findings.append(
                     f"⚠️ Residual noise inconsistency ({score:.2f}%): "
@@ -114,7 +125,7 @@ class ReasoningEngine:
         # COLOR SPACE
         # ---------------------------------------------------------
         if "color_space" in methods:
-            score = methods["color_space"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["color_space"].get("suspicion_score", 0))
             if score > self.thresholds["color_space"]:
                 findings.append(
                     f"⚠️ Chromatic embedding anomaly ({score:.2f}%): "
@@ -125,7 +136,7 @@ class ReasoningEngine:
         # DCT ANALYSIS
         # ---------------------------------------------------------
         if "dct_analysis" in methods:
-            dct_score = methods["dct_analysis"].get("suspicion_score", 0)
+            dct_score = self._safe_get_float(methods["dct_analysis"].get("suspicion_score", 0))
             if dct_score > self.thresholds["dct_analysis"]:
                 findings.append(
                     f"⚠️ JPEG frequency-domain coefficient anomaly ({dct_score:.2f}%): "
@@ -136,7 +147,7 @@ class ReasoningEngine:
         # METADATA
         # ---------------------------------------------------------
         if "metadata" in methods:
-            score = methods["metadata"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["metadata"].get("suspicion_score", 0))
             if score > self.thresholds["metadata"]:
                 findings.append(
                     f"ℹ️ Metadata irregularity ({score:.2f}%): "
@@ -147,7 +158,7 @@ class ReasoningEngine:
         # PNG STRUCTURAL FORENSICS
         # ---------------------------------------------------------
         if "png_chunk_analysis" in methods:
-            png_score = methods["png_chunk_analysis"].get("suspicion_score", 0)
+            png_score = self._safe_get_float(methods["png_chunk_analysis"].get("suspicion_score", 0))
             if png_score > self.thresholds["png_chunk_analysis"]:
                 findings.append(
                     f"⚠️ PNG structural chunk anomaly ({png_score:.2f}%): "
@@ -158,7 +169,7 @@ class ReasoningEngine:
         # CLONE DETECTION
         # ---------------------------------------------------------
         if "clone_detection" in methods:
-            score = methods["clone_detection"].get("suspicion_score", 0)
+            score = self._safe_get_float(methods["clone_detection"].get("suspicion_score", 0))
             if score > self.thresholds["clone_detection"]:
                 findings.append(
                     f"❌ Clone-pattern similarity detected ({score:.2f}%): "
@@ -169,8 +180,8 @@ class ReasoningEngine:
         # DEEP CNN LEARNING
         # ---------------------------------------------------------
         if "deep_learning" in methods:
-            dl_score = methods["deep_learning"].get("deep_learning_score", 0)
-            dl_conf = methods["deep_learning"].get("deep_learning_confidence", 0)
+            dl_score = self._safe_get_float(methods["deep_learning"].get("deep_learning_score", 0))
+            dl_conf = self._safe_get_float(methods["deep_learning"].get("deep_learning_confidence", 0))
 
             if dl_score > self.thresholds["deep_learning"]:
                 findings.append(
@@ -185,23 +196,23 @@ class ReasoningEngine:
         jpeg_family = 0
         manipulation_family = 0
 
-        if methods.get("lsb", {}).get("lsb_suspicion_score", 0) > self.thresholds["lsb"]:
+        if self._safe_get_float(methods.get("lsb", {}).get("lsb_suspicion_score", 0)) > self.thresholds["lsb"]:
             lsb_family += 1
-        if methods.get("rs_analysis", {}).get("suspicion_score", 0) > self.thresholds["rs_analysis"]:
+        if self._safe_get_float(methods.get("rs_analysis", {}).get("suspicion_score", 0)) > self.thresholds["rs_analysis"]:
             lsb_family += 1
-        if methods.get("spa_analysis", {}).get("suspicion_score", 0) > self.thresholds["spa_analysis"]:
+        if self._safe_get_float(methods.get("spa_analysis", {}).get("suspicion_score", 0)) > self.thresholds["spa_analysis"]:
             lsb_family += 1
 
-        if methods.get("jpeg_ghost", {}).get("suspicion_score", 0) > self.thresholds["jpeg_ghost"]:
+        if self._safe_get_float(methods.get("jpeg_ghost", {}).get("suspicion_score", 0)) > self.thresholds["jpeg_ghost"]:
             jpeg_family += 1
-        if methods.get("dct_analysis", {}).get("suspicion_score", 0) > self.thresholds["dct_analysis"]:
+        if self._safe_get_float(methods.get("dct_analysis", {}).get("suspicion_score", 0)) > self.thresholds["dct_analysis"]:
             jpeg_family += 1
 
-        if methods.get("ela", {}).get("suspicion_score", 0) > self.thresholds["ela"]:
+        if self._safe_get_float(methods.get("ela", {}).get("suspicion_score", 0)) > self.thresholds["ela"]:
             manipulation_family += 1
-        if methods.get("noise", {}).get("suspicion_score", 0) > self.thresholds["noise"]:
+        if self._safe_get_float(methods.get("noise", {}).get("suspicion_score", 0)) > self.thresholds["noise"]:
             manipulation_family += 1
-        if methods.get("clone_detection", {}).get("suspicion_score", 0) > self.thresholds["clone_detection"]:
+        if self._safe_get_float(methods.get("clone_detection", {}).get("suspicion_score", 0)) > self.thresholds["clone_detection"]:
             manipulation_family += 1
 
         if lsb_family >= 2:
@@ -220,7 +231,7 @@ class ReasoningEngine:
             )
 
         if (
-            methods.get("deep_learning", {}).get("deep_learning_score", 0) > self.thresholds["deep_learning"]
+            self._safe_get_float(methods.get("deep_learning", {}).get("deep_learning_score", 0)) > self.thresholds["deep_learning"]
             and len(findings) >= 3
         ):
             critical_flags.append(
